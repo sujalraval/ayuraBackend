@@ -1,0 +1,22 @@
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.ADMIN_EMAIL,
+        pass: process.env.ADMIN_PASS
+    }
+});
+
+const sendApprovalEmail = async (toEmail, timeSlot) => {
+    const mailOptions = {
+        from: process.env.ADMIN_EMAIL,
+        to: toEmail,
+        subject: 'Your Lab Test Request Has Been Approved',
+        text: `Your request has been approved. Our lab technician will arrive during the scheduled slot: ${timeSlot}`
+    };
+
+    await transporter.sendMail(mailOptions);
+};
+
+module.exports = sendApprovalEmail;
