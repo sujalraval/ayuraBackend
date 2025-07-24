@@ -11,6 +11,6 @@ echo "Installing Dependencies..."
 npm install --yes
 
 echo "Restarting PM2 processes..."
-pm2 restart all
+npx pm2 restart all
 
 echo "Deployment Finished!"
