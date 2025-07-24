@@ -123,7 +123,7 @@ const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
     console.log(`
-🚀 Ayura Lab Test API Server is running!
+🚀 Ayura Lab Test API Server is running.....
 📡 Environment: ${process.env.NODE_ENV}
 🌐 Port: ${PORT}
 📊 Database: Connected
