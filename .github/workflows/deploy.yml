@@ -20,4 +20,5 @@ jobs:
           key: ${{ secrets.SSHKEY }}
           script: |
             cd /root/ayuracode/ayuraBackend/
-            ./.scripts/deploy.sh
+            chmod +x ./.scripts/deploy.sh
+            bash ./.scripts/deploy.sh
