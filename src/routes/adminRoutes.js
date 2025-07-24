@@ -14,7 +14,7 @@ const {
 
 // Public routes (no authentication required)
 router.post('/login', adminLogin);
-router.post('/create-super-admin', createSuperAdmin);
+// router.post('/create-super-admin', createSuperAdmin);
 router.post('/refresh-token', refreshToken);
 
 // Logout route (can be public)
