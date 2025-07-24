@@ -10,7 +10,4 @@ echo "New changes copied to server !"
 echo "Installing Dependencies..."
 npm install --yes
 
-echo "Restarting PM2 processes..."
-npx pm2 restart all
-
 echo "Deployment Finished!"
