@@ -1,5 +1,7 @@
-#!/bin/bash
 set -e
+
+echo "Adding execute permissions to deployment script..."
+chmod +x ./.scripts/deploy.sh
 
 echo "Deployment started..."
 
