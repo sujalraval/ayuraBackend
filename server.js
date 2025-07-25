@@ -20,13 +20,6 @@ const app = express();
 // Trust proxy for production (important for HTTPS)
 app.set('trust proxy', 1);
 
-// Security headers with CORS-friendly configuration
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false // Disable CSP that might block CORS
-}));
-
 // Define allowed origins
 const allowedOrigins = [
     'http://localhost:5173',
@@ -34,6 +27,13 @@ const allowedOrigins = [
     'https://ayuras.life',
     'https://admin.ayuras.life'
 ];
+
+// Security headers with CORS-friendly configuration
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false // Disable CSP that might block CORS
+}));
 
 // Enhanced CORS configuration
 app.use(cors({
@@ -58,17 +58,17 @@ app.use(cors({
     ],
     credentials: true,
     optionsSuccessStatus: 200,
-    preflightContinue: false
+    preflightContinue: false,
+    exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 
 // Explicit OPTIONS handler for all routes
-app.options('*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin,Cache-Control,X-File-Name');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.sendStatus(200);
-});
+app.options('*', cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'X-File-Name']
+}));
 
 app.use(morgan('combined')); // HTTP request logger
 app.use(express.json({ limit: '10mb' })); // Body parser for JSON

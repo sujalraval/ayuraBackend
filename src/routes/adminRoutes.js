@@ -14,10 +14,29 @@ const {
 
 const { adminAuth, authorize } = require('../middleware/adminAuth');
 
-// Add CORS headers specifically for admin routes
+// Define allowed origins for admin routes
+const adminAllowedOrigins = [
+    'https://admin.ayuras.life',
+    'http://localhost:5173'
+];
+
+// Enhanced CORS middleware for admin routes
 router.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
+    const origin = req.headers.origin;
+
+    if (adminAllowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+        res.header('Access-Control-Expose-Headers', 'Set-Cookie, Date, ETag');
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
     next();
 });
 
@@ -35,6 +54,10 @@ router.post('/logout', (req, res) => {
     // Clear multiple possible cookie names
     res.clearCookie('adminToken');
     res.clearCookie('ayuras.sid');
+
+    // Additional headers for CORS
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
 
     res.json({
         success: true,
