@@ -12,14 +12,14 @@ const generateToken = (id, email, role) => {
 };
 
 /**
- * @desc    Admin login - FIXED
+ * @desc    Admin login
  * @route   POST /api/v1/admin/login
  * @access  Public
  */
 exports.adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log('Login attempt for:', email);
+        console.log('Login attempt for:', email, 'from origin:', req.headers.origin);
 
         if (!email || !password) {
             return res.status(400).json({
@@ -30,9 +30,9 @@ exports.adminLogin = async (req, res) => {
 
         // Find admin with password
         const admin = await AdminUser.findOne({ email }).select('+password');
-        console.log('Found admin:', admin ? admin.email : 'none');
 
         if (!admin) {
+            console.log('No admin found with email:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -40,11 +40,10 @@ exports.adminLogin = async (req, res) => {
         }
 
         // Verify password
-        console.log('Comparing passwords...');
-        const isMatch = await bcrypt.compare(password, admin.password);
-        console.log('Password match:', isMatch);
+        const isMatch = await admin.matchPassword(password);
 
         if (!isMatch) {
+            console.log('Password mismatch for admin:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -53,16 +52,19 @@ exports.adminLogin = async (req, res) => {
 
         // Generate token
         const token = generateToken(admin._id, admin.email, admin.role);
-        console.log('Generated token:', token);
 
         // Set cookie
         res.cookie('adminToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'none',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : 'localhost'
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined
         });
+
+        // Update last login
+        admin.lastLogin = new Date();
+        await admin.save();
 
         // Send response
         res.status(200).json({
@@ -84,6 +86,8 @@ exports.adminLogin = async (req, res) => {
         });
     }
 };
+
+
 /**
  * @desc    Create super admin (FIXED - no double hashing)
  * @route   POST /api/v1/admin/create-super-admin

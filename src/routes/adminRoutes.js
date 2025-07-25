@@ -17,12 +17,14 @@ const { adminAuth, authorize } = require('../middleware/adminAuth');
 // Define allowed origins for admin routes
 const adminAllowedOrigins = [
     'https://admin.ayuras.life',
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'http://localhost:5000'
 ];
 
 // Enhanced CORS middleware for admin routes
 router.use((req, res, next) => {
     const origin = req.headers.origin;
+    console.log(`Incoming request from origin: ${origin}`);
 
     if (adminAllowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);

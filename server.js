@@ -101,7 +101,11 @@ app.use('/uploads',
     }),
     express.static('uploads')
 );
-
+// Add this before your routes
+app.use((req, res, next) => {
+    console.log(`Incoming ${req.method} request to ${req.path} from ${req.headers.origin}`);
+    next();
+});
 // API Routes
 app.use('/api/v1', require('./src/routes'));
 
