@@ -68,10 +68,10 @@ exports.adminLogin = async (req, res) => {
         const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('adminToken', token, {
             httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? 'none' : 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            domain: isProduction ? '.ayuras.life' : undefined,
+            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : 'localhost',
             path: '/'
         });
 
@@ -89,7 +89,10 @@ exports.adminLogin = async (req, res) => {
                 role: admin.role,
                 name: admin.name,
                 permissions: admin.permissions || []
-            }
+            },
+            // Add these for better client-side handling
+            expiresIn: 7 * 24 * 60 * 60 * 1000,
+            tokenType: 'Bearer'
         });
 
     } catch (error) {

@@ -30,6 +30,7 @@ const allowedOrigins = [
     'https://ayuras.life'
 ];
 
+
 // Enhanced CORS middleware
 app.use(cors({
     origin: function (origin, callback) {
