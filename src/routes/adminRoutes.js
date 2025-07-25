@@ -78,3 +78,5 @@ router.put('/:id', adminAuth, authorize('superadmin'), updateAdmin);
 router.delete('/:id', adminAuth, authorize('superadmin'), deleteAdmin);
 
 module.exports = router;
+
+// This code defines the admin routes for the application, including login, profile management, and admin management functionalities. It also implements CORS handling for specific origins and includes middleware for authentication and authorization.
