@@ -514,25 +514,28 @@ exports.refreshToken = async (req, res) => {
         });
     }
 };
-
 /**
- * @desc    Admin logout
- * @route   POST /api/v1/admin/logout
- * @access  Private
+ * @desc Admin logout
+ * @route POST /api/v1/admin/logout
+ * @access Private
  */
 exports.adminLogout = async (req, res) => {
     try {
-        // Clear cookie
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        // Clear cookie with proper options
         res.clearCookie('adminToken', {
-            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined,
-            path: '/'
+            domain: isProduction ? '.ayuras.life' : undefined,
+            path: '/',
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax'
         });
 
         res.status(200).json({
             success: true,
             message: 'Logged out successfully'
         });
-
     } catch (error) {
         console.error('Logout error:', error);
         res.status(500).json({
