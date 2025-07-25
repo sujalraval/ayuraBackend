@@ -19,23 +19,16 @@ const app = express();
 
 // Trust proxy for production (important for HTTPS)
 app.set('trust proxy', 1);
-
-// Define allowed origins
+// Update allowedOrigins to include your production domains
 const allowedOrigins = [
     'https://admin.ayuras.life',
+    'https://www.admin.ayuras.life',
     'http://localhost:5173',
     'http://localhost:5174',
     'https://ayuras.life'
 ];
 
-// Security headers with CORS-friendly configuration
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false // Disable CSP that might block CORS
-}));
-
-// Enhanced CORS configuration
+// Update CORS middleware
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps, Postman) or if origin is allowed
@@ -61,6 +54,7 @@ app.use(cors({
     preflightContinue: false,
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
+
 
 // Explicit OPTIONS handler for all routes
 app.options('*', cors({

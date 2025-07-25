@@ -19,7 +19,7 @@ const generateToken = (id, email, role) => {
 exports.adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log('Login attempt for:', email);
+        console.log('Login attempt for:', email, 'from origin:', req.headers.origin);
 
         if (!email || !password) {
             console.log('Missing email or password');
@@ -40,8 +40,13 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        console.log('Found admin:', admin.email);
-        console.log('Comparing passwords...');
+        if (!admin.isActive) {
+            console.log('Admin account inactive:', email);
+            return res.status(403).json({
+                success: false,
+                message: 'Account deactivated. Contact support.'
+            });
+        }
 
         // Verify password
         const isMatch = await admin.matchPassword(password);
@@ -59,24 +64,31 @@ exports.adminLogin = async (req, res) => {
         const token = generateToken(admin._id, admin.email, admin.role);
         console.log('Login successful for:', email);
 
-        // Set cookie
+        // Set cookie with enhanced security for production
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('adminToken', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            domain: isProduction ? '.ayuras.life' : undefined,
+            path: '/'
         });
 
-        // Send response
+        // Update last login
+        admin.lastLogin = new Date();
+        await admin.save();
+
+        // Send response with token in both cookie and body
         res.status(200).json({
             success: true,
-            token,
+            token, // For clients that prefer to store token in localStorage
             admin: {
                 id: admin._id,
                 email: admin.email,
                 role: admin.role,
-                name: admin.name
+                name: admin.name,
+                permissions: admin.permissions || []
             }
         });
 
@@ -84,20 +96,26 @@ exports.adminLogin = async (req, res) => {
         console.error('Login error:', error);
         res.status(500).json({
             success: false,
-            message: 'Login failed'
+            message: 'Login failed',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 };
 
-
 /**
- * @desc    Create super admin (FIXED - no double hashing)
+ * @desc    Create super admin (for initial setup only)
  * @route   POST /api/v1/admin/create-super-admin
- * @access  Public (but should be secured in production)
+ * @access  Public (should be disabled in production)
  */
 exports.createSuperAdmin = async (req, res) => {
     try {
-        console.log('=== CREATE SUPER ADMIN REQUEST ===');
+        // Disable this route in production unless specifically enabled
+        if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SUPERADMIN_CREATION !== 'true') {
+            return res.status(403).json({
+                success: false,
+                message: 'Super admin creation is disabled in production'
+            });
+        }
 
         const { email, password, name } = req.body;
 
@@ -111,26 +129,23 @@ exports.createSuperAdmin = async (req, res) => {
         // Check if admin already exists
         const existingAdmin = await AdminUser.findOne({ email });
         if (existingAdmin) {
-            console.log('❌ Admin already exists with email:', email);
             return res.status(400).json({
                 success: false,
                 message: 'Admin with this email already exists'
             });
         }
 
-        // DON'T hash password here - let the model's pre('save') middleware handle it
+        // Create super admin (password will be hashed by pre-save hook)
         const superAdmin = new AdminUser({
             email,
-            password, // Pass raw password - the model will hash it automatically
+            password,
             name: name || 'Super Admin',
             role: 'superadmin',
             isActive: true,
             permissions: ['all']
         });
 
-        await superAdmin.save(); // The pre('save') middleware will hash the password
-
-        console.log('✅ Super admin created:', { id: superAdmin._id, email: superAdmin.email });
+        await superAdmin.save();
 
         // Generate token
         const token = generateToken(superAdmin._id, superAdmin.email, superAdmin.role);
@@ -149,7 +164,7 @@ exports.createSuperAdmin = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Create super admin error:', error);
+        console.error('Create super admin error:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -166,7 +181,6 @@ exports.createSuperAdmin = async (req, res) => {
     }
 };
 
-
 /**
  * @desc    Get admin profile
  * @route   GET /api/v1/admin/profile
@@ -174,9 +188,6 @@ exports.createSuperAdmin = async (req, res) => {
  */
 exports.getAdminProfile = async (req, res) => {
     try {
-        console.log('=== GET ADMIN PROFILE ===');
-        console.log('Requesting user:', req.user?.email, req.user?.role);
-
         const admin = await AdminUser.findById(req.user.id).select('-password -__v');
 
         if (!admin) {
@@ -202,7 +213,7 @@ exports.getAdminProfile = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Get profile error:', error);
+        console.error('Get profile error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error fetching profile',
@@ -235,7 +246,7 @@ exports.getAllAdmins = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Get all admins error:', error);
+        console.error('Get all admins error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error fetching admins',
@@ -268,14 +279,19 @@ exports.createAdmin = async (req, res) => {
             });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // Check if admin already exists
+        const existingAdmin = await AdminUser.findOne({ email });
+        if (existingAdmin) {
+            return res.status(400).json({
+                success: false,
+                message: 'Admin with this email already exists'
+            });
+        }
 
-        // Create admin
+        // Create admin (password will be hashed by pre-save hook)
         const admin = new AdminUser({
             email,
-            password: hashedPassword,
+            password,
             name: name || email.split('@')[0],
             role: role || 'admin',
             isActive: true,
@@ -288,14 +304,16 @@ exports.createAdmin = async (req, res) => {
             success: true,
             message: 'Admin created successfully',
             admin: {
+                id: admin._id,
                 email: admin.email,
                 role: admin.role,
-                permissions: admin.permissions,
+                name: admin.name,
+                permissions: admin.permissions
             }
         });
 
     } catch (error) {
-        console.error('❌ Create admin error:', error);
+        console.error('Create admin error:', error);
 
         if (error.code === 11000) {
             return res.status(400).json({
@@ -327,7 +345,7 @@ exports.updateAdmin = async (req, res) => {
             });
         }
 
-        const { name, role, permissions, isActive } = req.body;
+        const { name, role, permissions, isActive, password } = req.body;
 
         const admin = await AdminUser.findById(req.params.id);
 
@@ -343,6 +361,12 @@ exports.updateAdmin = async (req, res) => {
         if (role !== undefined && req.user.role === 'superadmin') admin.role = role;
         if (permissions !== undefined && req.user.role === 'superadmin') admin.permissions = permissions;
         if (isActive !== undefined && req.user.role === 'superadmin') admin.isActive = isActive;
+
+        // Handle password change
+        if (password) {
+            admin.password = password;
+            admin.passwordChangedAt = Date.now();
+        }
 
         await admin.save();
 
@@ -360,7 +384,7 @@ exports.updateAdmin = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Update admin error:', error);
+        console.error('Update admin error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error updating admin',
@@ -409,7 +433,7 @@ exports.deleteAdmin = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Delete admin error:', error);
+        console.error('Delete admin error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error deleting admin',
@@ -425,7 +449,8 @@ exports.deleteAdmin = async (req, res) => {
  */
 exports.refreshToken = async (req, res) => {
     try {
-        const { token } = req.body;
+        // Try to get token from cookies first, then from body
+        const token = req.cookies.adminToken || req.body.token;
 
         if (!token) {
             return res.status(401).json({
@@ -450,6 +475,17 @@ exports.refreshToken = async (req, res) => {
         // Generate new token
         const newToken = generateToken(admin._id, admin.email, admin.role);
 
+        // Set new cookie
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('adminToken', newToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            domain: isProduction ? '.ayuras.life' : undefined,
+            path: '/'
+        });
+
         res.status(200).json({
             success: true,
             token: newToken,
@@ -463,11 +499,45 @@ exports.refreshToken = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Refresh token error:', error);
+        console.error('Refresh token error:', error);
+
+        // Clear invalid token cookie
+        res.clearCookie('adminToken', {
+            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined,
+            path: '/'
+        });
+
         res.status(401).json({
             success: false,
             message: 'Invalid refresh token',
             error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+/**
+ * @desc    Admin logout
+ * @route   POST /api/v1/admin/logout
+ * @access  Private
+ */
+exports.adminLogout = async (req, res) => {
+    try {
+        // Clear cookie
+        res.clearCookie('adminToken', {
+            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined,
+            path: '/'
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Logged out successfully'
+        });
+
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during logout'
         });
     }
 };
