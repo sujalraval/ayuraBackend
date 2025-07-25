@@ -17,7 +17,7 @@ const { adminAuth, authorize } = require('../middleware/adminAuth');
 
 // Public routes
 router.post('/login', adminLogin);
-router.post('/create-super-admin', createSuperAdmin); // Remove in production
+// router.post('/create-super-admin', createSuperAdmin); // Remove in production
 router.post('/refresh-token', refreshToken);
 router.post('/logout', adminLogout);
 
