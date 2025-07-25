@@ -20,7 +20,7 @@ const app = express();
 // Middleware
 app.use(helmet()); // Security headers
 
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'https://ayuras.life'];
 
 app.use(cors({
     origin: function (origin, callback) {

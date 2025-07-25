@@ -12,7 +12,7 @@ const generateToken = (id, email, role) => {
 };
 
 /**
- * @desc    Admin login
+ * @desc    Admin login - FIXED
  * @route   POST /api/v1/admin/login
  * @access  Public
  */
@@ -32,7 +32,7 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        // Check for admin user (include password for comparison)
+        // ✅ FIX: Explicitly select the password field
         const admin = await AdminUser.findOne({ email }).select('+password');
 
         if (!admin) {
@@ -43,7 +43,22 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        console.log('✅ Admin found:', { id: admin._id, email: admin.email, role: admin.role });
+        console.log('✅ Admin found:', {
+            id: admin._id,
+            email: admin.email,
+            role: admin.role,
+            hasPassword: !!admin.password,
+            passwordLength: admin.password ? admin.password.length : 0
+        });
+
+        // Check if password field exists
+        if (!admin.password) {
+            console.log('❌ Password field is missing from database');
+            return res.status(500).json({
+                success: false,
+                message: 'Account configuration error. Contact support.'
+            });
+        }
 
         // Check if account is active
         if (!admin.isActive) {
@@ -54,8 +69,8 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
-        // Check password
-        const isPasswordMatch = await bcrypt.compare(password, admin.password);
+        // Use the model's matchPassword method
+        const isPasswordMatch = await admin.matchPassword(password);
 
         if (!isPasswordMatch) {
             console.log('❌ Password mismatch');
@@ -70,13 +85,12 @@ exports.adminLogin = async (req, res) => {
         // Generate token
         const token = generateToken(admin._id, admin.email, admin.role);
 
-        // Update last login
-        admin.lastLogin = new Date();
-        await admin.save();
+        // Update last login (but don't select password for this operation)
+        await AdminUser.findByIdAndUpdate(admin._id, { lastLogin: new Date() });
 
         console.log('✅ Login successful, token generated');
 
-        // Send response
+        // Send response (password is automatically excluded due to select: false)
         res.status(200).json({
             success: true,
             message: 'Login successful',
@@ -87,7 +101,7 @@ exports.adminLogin = async (req, res) => {
                 role: admin.role,
                 name: admin.name || admin.email.split('@')[0],
                 permissions: admin.permissions || [],
-                lastLogin: admin.lastLogin
+                lastLogin: new Date()
             }
         });
 
@@ -102,24 +116,13 @@ exports.adminLogin = async (req, res) => {
 };
 
 /**
- * @desc    Create super admin (one-time use)
+ * @desc    Create super admin (FIXED - no double hashing)
  * @route   POST /api/v1/admin/create-super-admin
  * @access  Public (but should be secured in production)
  */
 exports.createSuperAdmin = async (req, res) => {
     try {
         console.log('=== CREATE SUPER ADMIN REQUEST ===');
-
-        // Check if super admin already exists
-        const existingSuperAdmin = await AdminUser.findOne({ role: 'superadmin' });
-
-        if (existingSuperAdmin) {
-            console.log('❌ Super admin already exists');
-            return res.status(400).json({
-                success: false,
-                message: 'Super admin already exists'
-            });
-        }
 
         const { email, password, name } = req.body;
 
@@ -130,21 +133,27 @@ exports.createSuperAdmin = async (req, res) => {
             });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(12);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // Check if admin already exists
+        const existingAdmin = await AdminUser.findOne({ email });
+        if (existingAdmin) {
+            console.log('❌ Admin already exists with email:', email);
+            return res.status(400).json({
+                success: false,
+                message: 'Admin with this email already exists'
+            });
+        }
 
-        // Create super admin
+        // DON'T hash password here - let the model's pre('save') middleware handle it
         const superAdmin = new AdminUser({
             email,
-            password: hashedPassword,
+            password, // Pass raw password - the model will hash it automatically
             name: name || 'Super Admin',
             role: 'superadmin',
             isActive: true,
             permissions: ['all']
         });
 
-        await superAdmin.save();
+        await superAdmin.save(); // The pre('save') middleware will hash the password
 
         console.log('✅ Super admin created:', { id: superAdmin._id, email: superAdmin.email });
 
@@ -181,6 +190,7 @@ exports.createSuperAdmin = async (req, res) => {
         });
     }
 };
+
 
 /**
  * @desc    Get admin profile
@@ -284,7 +294,7 @@ exports.createAdmin = async (req, res) => {
         }
 
         // Hash password
-        const salt = await bcrypt.genSalt(12);
+        const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Create admin
@@ -303,12 +313,9 @@ exports.createAdmin = async (req, res) => {
             success: true,
             message: 'Admin created successfully',
             admin: {
-                id: admin._id,
                 email: admin.email,
                 role: admin.role,
-                name: admin.name,
                 permissions: admin.permissions,
-                isActive: admin.isActive
             }
         });
 
