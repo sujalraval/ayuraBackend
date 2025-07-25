@@ -17,38 +17,75 @@ connectDB();
 
 const app = express();
 
-// Middleware
-app.use(helmet()); // Security headers
+// Trust proxy for production (important for HTTPS)
+app.set('trust proxy', 1);
 
-const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'https://ayuras.life', 'https://admin.ayuras.life'];
+// Security headers with CORS-friendly configuration
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false // Disable CSP that might block CORS
+}));
 
+// Define allowed origins
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://ayuras.life',
+    'https://admin.ayuras.life'
+];
+
+// Enhanced CORS configuration
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like Postman) or if origin is allowed
+        // Allow requests with no origin (like mobile apps, Postman) or if origin is allowed
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            console.log('CORS blocked origin:', origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Added PATCH method
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'X-File-Name'
+    ],
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    preflightContinue: false
 }));
+
+// Explicit OPTIONS handler for all routes
+app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin,Cache-Control,X-File-Name');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(200);
+});
 
 app.use(morgan('combined')); // HTTP request logger
 app.use(express.json({ limit: '10mb' })); // Body parser for JSON
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Body parser for URL encoded data
 
-// Session configuration
+// Session configuration with proper production settings
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || 'your-fallback-secret',
     resave: false,
     saveUninitialized: false,
+    name: 'ayuras.sid', // Custom session name
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+        httpOnly: true, // Prevent XSS
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Allow cross-site cookies in production
+        domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined // Share cookies across subdomains
     }
 }));
 
@@ -56,8 +93,14 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve uploaded images
-app.use('/uploads', cors({ origin: 'http://localhost:5174' }), express.static('uploads'));
+// Serve uploaded images with proper CORS
+app.use('/uploads',
+    cors({
+        origin: allowedOrigins,
+        credentials: true
+    }),
+    express.static('uploads')
+);
 
 // API Routes
 app.use('/api/v1', require('./src/routes'));
@@ -68,6 +111,10 @@ app.get('/', (req, res) => {
         success: true,
         message: 'Welcome to Ayura Lab Test API - Google OAuth Enabled',
         version: '1.0.0',
+        environment: process.env.NODE_ENV,
+        cors: {
+            allowedOrigins: allowedOrigins
+        },
         endpoints: {
             health: '/api/v1/health',
             googleAuth: '/api/v1/auth/google',
@@ -87,6 +134,15 @@ app.use('*', (req, res) => {
 // Global error handling middleware
 app.use((err, req, res, next) => {
     console.error('Global error handler:', err.stack);
+
+    // CORS error
+    if (err.message === 'Not allowed by CORS') {
+        return res.status(403).json({
+            success: false,
+            message: 'CORS policy violation',
+            origin: req.headers.origin
+        });
+    }
 
     // Mongoose bad ObjectId
     if (err.name === 'CastError') {
@@ -121,7 +177,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 🚀 Ayura Lab Test API Server is running....!!!!
 📡 Environment: ${process.env.NODE_ENV}
@@ -129,6 +185,7 @@ const server = app.listen(PORT, () => {
 📊 Database: Connected
 🔗 API Base URL: http://localhost:${PORT}/api/v1
 🔐 Admin API: http://localhost:${PORT}/api/v1/admin
+🌍 CORS Origins: ${allowedOrigins.join(', ')}
 `);
 });
 
