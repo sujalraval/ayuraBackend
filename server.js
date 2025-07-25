@@ -4,11 +4,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const session = require('express-session');
+const path = require('path');
 
 // Load environment variables FIRST
 dotenv.config();
 
-// NOW import passport after env vars are loaded
+// Import passport after env vars are loaded
 const passport = require('./src/config/passport');
 const connectDB = require('./src/config/database');
 
@@ -56,7 +57,10 @@ app.use(cors({
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 
-app.use(morgan('combined'));
+// Handle preflight requests
+app.options('*', cors());
+
+app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -79,14 +83,10 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve uploaded images with proper CORS
-app.use('/uploads',
-    cors({
-        origin: allowedOrigins,
-        credentials: true
-    }),
-    express.static('uploads')
-);
+// Serve static files from React app if in production
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, 'client/build')));
+}
 
 // Log incoming requests
 app.use((req, res, next) => {
@@ -97,19 +97,12 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/v1', require('./src/routes'));
 
-// Welcome route
-app.get('/', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Welcome to Ayura Lab Test API',
-        version: '1.0.0',
-        environment: process.env.NODE_ENV,
-        endpoints: {
-            health: '/api/v1/health',
-            adminAuth: '/api/v1/admin/login',
-        }
+// In production, serve React app for all other routes
+if (process.env.NODE_ENV === 'production') {
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
     });
-});
+}
 
 // Handle 404 routes
 app.use('*', (req, res) => {
