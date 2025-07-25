@@ -19,9 +19,10 @@ const generateToken = (id, email, role) => {
 exports.adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log('Login attempt for:', email, 'from origin:', req.headers.origin);
+        console.log('Login attempt for:', email);
 
         if (!email || !password) {
+            console.log('Missing email or password');
             return res.status(400).json({
                 success: false,
                 message: 'Email and password required'
@@ -29,21 +30,25 @@ exports.adminLogin = async (req, res) => {
         }
 
         // Find admin with password
-        const admin = await AdminUser.findOne({ email }).select('+password');
+        const admin = await AdminUser.findOne({ email: email.trim() }).select('+password');
 
         if (!admin) {
-            console.log('No admin found with email:', email);
+            console.log('Admin not found:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
             });
         }
 
+        console.log('Found admin:', admin.email);
+        console.log('Comparing passwords...');
+
         // Verify password
         const isMatch = await admin.matchPassword(password);
+        console.log('Password match result:', isMatch);
 
         if (!isMatch) {
-            console.log('Password mismatch for admin:', email);
+            console.log('Password mismatch for:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -52,19 +57,16 @@ exports.adminLogin = async (req, res) => {
 
         // Generate token
         const token = generateToken(admin._id, admin.email, admin.role);
+        console.log('Login successful for:', email);
 
         // Set cookie
         res.cookie('adminToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : undefined
         });
-
-        // Update last login
-        admin.lastLogin = new Date();
-        await admin.save();
 
         // Send response
         res.status(200).json({
