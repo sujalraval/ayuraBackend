@@ -22,10 +22,10 @@ app.set('trust proxy', 1);
 
 // Define allowed origins
 const allowedOrigins = [
+    'https://admin.ayuras.life',
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://ayuras.life',
-    'https://admin.ayuras.life'
+    'https://ayuras.life'
 ];
 
 // Security headers with CORS-friendly configuration

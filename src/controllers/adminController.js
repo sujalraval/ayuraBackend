@@ -18,103 +18,72 @@ const generateToken = (id, email, role) => {
  */
 exports.adminLogin = async (req, res) => {
     try {
-        console.log('=== ADMIN LOGIN REQUEST ===');
         const { email, password } = req.body;
+        console.log('Login attempt for:', email);
 
-        console.log('Login attempt for email:', email);
-
-        // Validate input
         if (!email || !password) {
-            console.log('❌ Missing email or password');
             return res.status(400).json({
                 success: false,
-                message: 'Please provide email and password'
+                message: 'Email and password required'
             });
         }
 
-        // ✅ FIX: Explicitly select the password field
+        // Find admin with password
         const admin = await AdminUser.findOne({ email }).select('+password');
+        console.log('Found admin:', admin ? admin.email : 'none');
 
         if (!admin) {
-            console.log('❌ Admin not found for email:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
             });
         }
 
-        console.log('✅ Admin found:', {
-            id: admin._id,
-            email: admin.email,
-            role: admin.role,
-            hasPassword: !!admin.password,
-            passwordLength: admin.password ? admin.password.length : 0
-        });
+        // Verify password
+        console.log('Comparing passwords...');
+        const isMatch = await bcrypt.compare(password, admin.password);
+        console.log('Password match:', isMatch);
 
-        // Check if password field exists
-        if (!admin.password) {
-            console.log('❌ Password field is missing from database');
-            return res.status(500).json({
-                success: false,
-                message: 'Account configuration error. Contact support.'
-            });
-        }
-
-        // Check if account is active
-        if (!admin.isActive) {
-            console.log('❌ Admin account is deactivated');
-            return res.status(403).json({
-                success: false,
-                message: 'Account is deactivated. Contact support.'
-            });
-        }
-
-        // Use the model's matchPassword method
-        const isPasswordMatch = await admin.matchPassword(password);
-
-        if (!isPasswordMatch) {
-            console.log('❌ Password mismatch');
+        if (!isMatch) {
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
             });
         }
-
-        console.log('✅ Password verified');
 
         // Generate token
         const token = generateToken(admin._id, admin.email, admin.role);
+        console.log('Generated token:', token);
 
-        // Update last login (but don't select password for this operation)
-        await AdminUser.findByIdAndUpdate(admin._id, { lastLogin: new Date() });
+        // Set cookie
+        res.cookie('adminToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            domain: process.env.NODE_ENV === 'production' ? '.ayuras.life' : 'localhost'
+        });
 
-        console.log('✅ Login successful, token generated');
-
-        // Send response (password is automatically excluded due to select: false)
+        // Send response
         res.status(200).json({
             success: true,
-            message: 'Login successful',
             token,
             admin: {
                 id: admin._id,
                 email: admin.email,
                 role: admin.role,
-                name: admin.name || admin.email.split('@')[0],
-                permissions: admin.permissions || [],
-                lastLogin: new Date()
+                name: admin.name
             }
         });
 
     } catch (error) {
-        console.error('❌ Admin login error:', error);
+        console.error('Login error:', error);
         res.status(500).json({
             success: false,
-            message: 'Server error during login',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            message: 'Login failed'
         });
     }
 };
-
 /**
  * @desc    Create super admin (FIXED - no double hashing)
  * @route   POST /api/v1/admin/create-super-admin
