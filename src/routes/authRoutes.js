@@ -2,13 +2,13 @@ const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
-const User = require('../models/User'); // ✅ Move to top for consistency
+const User = require('../models/User');
 const { getAllUsers } = require('../controllers/authController');
 
-// 🧪 Admin: Get all users
+// Admin: Get all users
 router.get('/users', getAllUsers);
 
-// 🔐 Generate JWT Token
+// Generate JWT Token
 const generateToken = (user) => {
     return jwt.sign(
         {
@@ -22,7 +22,7 @@ const generateToken = (user) => {
     );
 };
 
-// 🌐 Start Google OAuth
+// Start Google OAuth
 router.get('/google', (req, res, next) => {
     console.log('Initiating Google OAuth...');
     passport.authenticate('google', {
@@ -32,7 +32,7 @@ router.get('/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// 🌐 Handle Google OAuth callback
+// Handle Google OAuth callback
 router.get('/google/callback',
     passport.authenticate('google', {
         failureRedirect: `${process.env.CLIENT_URL}/auth/error`,
@@ -41,20 +41,23 @@ router.get('/google/callback',
     (req, res) => {
         try {
             console.log('Google OAuth success, user:', req.user);
-
             const token = generateToken(req.user);
 
-            // 🔁 Redirect with token to frontend
-            const redirectUrl = `${process.env.CLIENT_URL}/?token=${token}`;
+            // **FIXED**: Use production URL for redirect
+            const clientUrl = process.env.CLIENT_URL || 'https://ayuras.life';
+            const redirectUrl = `${clientUrl}/?token=${token}`;
+
+            console.log('Redirecting to:', redirectUrl);
             res.redirect(redirectUrl);
         } catch (error) {
             console.error('Callback error:', error);
-            res.redirect(`${process.env.CLIENT_URL}/auth/error`);
+            const clientUrl = process.env.CLIENT_URL || 'https://ayuras.life';
+            res.redirect(`${clientUrl}/auth/error`);
         }
     }
 );
 
-// 👤 Get current logged-in user
+// Get current logged-in user
 router.get('/me', async (req, res) => {
     try {
         const authHeader = req.header('Authorization');
@@ -90,16 +93,15 @@ router.get('/me', async (req, res) => {
     }
 });
 
-// 🔓 Logout (for token-based auth, this is client-side only)
+// Logout
 router.post('/logout', (req, res) => {
-    // Just a response – no session or token invalidation needed
     res.status(200).json({
         success: true,
         message: 'Successfully logged out (token should be cleared client-side)'
     });
 });
 
-// 🚫 Optional: Frontend fallback for auth failure
+// Auth failure endpoint
 router.get('/error', (req, res) => {
     res.status(400).json({ success: false, message: 'Authentication failed' });
 });
