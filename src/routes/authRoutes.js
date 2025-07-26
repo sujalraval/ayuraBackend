@@ -5,16 +5,6 @@ const router = express.Router();
 const User = require('../models/User');
 const { getAllUsers } = require('../controllers/authController');
 
-// Debug middleware to log environment
-router.use((req, res, next) => {
-    console.log('Environment Debug:', {
-        NODE_ENV: process.env.NODE_ENV,
-        CLIENT_URL: process.env.CLIENT_URL,
-        timestamp: new Date().toISOString()
-    });
-    next();
-});
-
 // Generate JWT Token
 const generateToken = (user) => {
     return jwt.sign(
@@ -29,13 +19,34 @@ const generateToken = (user) => {
     );
 };
 
+// **CRITICAL FUNCTION**: Get correct client URL
+const getClientUrl = () => {
+    // Check if we're in production by multiple methods
+    const isProduction =
+        process.env.NODE_ENV === 'production' ||
+        process.env.RAILWAY_ENVIRONMENT === 'production' ||
+        process.env.VERCEL_ENV === 'production' ||
+        process.env.RENDER_EXTERNAL_URL ||
+        process.env.PORT === '80' ||
+        process.env.PORT === '443';
+
+    if (isProduction) {
+        console.log('🌐 PRODUCTION MODE: Using https://ayuras.life');
+        return 'https://ayuras.life';
+    } else {
+        const devUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+        console.log('🔧 DEVELOPMENT MODE: Using', devUrl);
+        return devUrl;
+    }
+};
+
 // Admin: Get all users
 router.get('/users', getAllUsers);
 
 // Start Google OAuth
 router.get('/google', (req, res, next) => {
     console.log('🔐 Initiating Google OAuth...');
-    console.log('Current CLIENT_URL:', process.env.CLIENT_URL);
+    console.log('🌐 Client URL will be:', getClientUrl());
 
     passport.authenticate('google', {
         scope: ['profile', 'email'],
@@ -44,7 +55,7 @@ router.get('/google', (req, res, next) => {
     })(req, res, next);
 });
 
-// Handle Google OAuth callback - **MAIN FIX HERE**
+// Handle Google OAuth callback - **MAIN FIX**
 router.get('/google/callback',
     passport.authenticate('google', {
         failureRedirect: '/api/v1/auth/error',
@@ -52,7 +63,12 @@ router.get('/google/callback',
     }),
     (req, res) => {
         try {
-            console.log('✅ Google OAuth success, user:', req.user);
+            console.log('✅ Google OAuth callback triggered');
+            console.log('📍 Current environment check:');
+            console.log('   NODE_ENV:', process.env.NODE_ENV);
+            console.log('   HOST:', req.get('host'));
+            console.log('   ORIGIN:', req.get('origin'));
+            console.log('   REFERER:', req.get('referer'));
 
             if (!req.user) {
                 console.error('❌ No user found in request');
@@ -60,26 +76,18 @@ router.get('/google/callback',
             }
 
             const token = generateToken(req.user);
-            console.log('🎫 Generated token:', token.substring(0, 50) + '...');
+            console.log('🎫 Token generated successfully');
 
-            // **CRITICAL FIX**: Force production URL regardless of environment variable
-            const isProduction = process.env.NODE_ENV === 'production';
-            let clientUrl;
+            // **DEFINITIVE FIX**: Force production URL detection
+            const clientUrl = getClientUrl();
+            const redirectUrl = `${clientUrl}/profile?token=${token}`;
 
-            if (isProduction) {
-                clientUrl = 'https://ayuras.life';
-                console.log('🌐 Using production URL:', clientUrl);
-            } else {
-                clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-                console.log('🔧 Using development URL:', clientUrl);
-            }
-
-            const redirectUrl = `${clientUrl}/?token=${token}`;
-            console.log('🔄 Final redirect URL:', redirectUrl);
+            console.log('🔄 FINAL REDIRECT URL:', redirectUrl);
+            console.log('🚀 Executing redirect...');
 
             res.redirect(redirectUrl);
         } catch (error) {
-            console.error('❌ Callback error:', error);
+            console.error('❌ OAuth callback error:', error);
             res.redirect(`https://ayuras.life/auth/error`);
         }
     }
@@ -89,7 +97,6 @@ router.get('/google/callback',
 router.get('/me', async (req, res) => {
     try {
         const authHeader = req.header('Authorization');
-        console.log('🔍 Auth header received:', authHeader ? 'Present' : 'Missing');
 
         if (!authHeader?.startsWith('Bearer ')) {
             return res.status(401).json({
@@ -106,7 +113,6 @@ router.get('/me', async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        console.log('✅ User authenticated:', user.email);
         res.status(200).json({
             success: true,
             data: {
@@ -126,7 +132,6 @@ router.get('/me', async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-    console.log('👋 User logging out');
     res.status(200).json({
         success: true,
         message: 'Successfully logged out'
@@ -135,7 +140,6 @@ router.post('/logout', (req, res) => {
 
 // Auth error endpoint
 router.get('/error', (req, res) => {
-    console.log('❌ Auth error endpoint hit');
     res.status(400).json({
         success: false,
         message: 'Authentication failed. Please try again.'

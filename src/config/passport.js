@@ -2,15 +2,32 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
 
+// **CRITICAL**: Determine callback URL based on environment
+const getCallbackUrl = () => {
+    const isProduction =
+        process.env.NODE_ENV === 'production' ||
+        process.env.RAILWAY_ENVIRONMENT === 'production' ||
+        process.env.VERCEL_ENV === 'production' ||
+        process.env.RENDER_EXTERNAL_URL ||
+        !process.env.CLIENT_URL ||
+        !process.env.CLIENT_URL.includes('localhost');
+
+    if (isProduction) {
+        return 'https://ayuras.life/api/v1/auth/google/callback';
+    } else {
+        return 'http://localhost:5000/api/v1/auth/google/callback';
+    }
+};
+
+const callbackUrl = getCallbackUrl();
+console.log('🔗 Google OAuth Callback URL:', callbackUrl);
+
 passport.use(
     new GoogleStrategy(
         {
             clientID: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            // **CRITICAL**: Make sure this matches your Google Console settings
-            callbackURL: process.env.NODE_ENV === 'production'
-                ? 'https://ayuras.life/api/v1/auth/google/callback'
-                : 'http://localhost:5000/api/v1/auth/google/callback'
+            callbackURL: callbackUrl
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
@@ -76,7 +93,6 @@ passport.deserializeUser(async (id, done) => {
 });
 
 module.exports = passport;
-
 
 
 
