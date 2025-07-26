@@ -60,7 +60,8 @@ app.use(cors({
 
 // Handle preflight requests
 app.options('*', cors());
-
+// In server.js, add this before the API routes and after the other middleware
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

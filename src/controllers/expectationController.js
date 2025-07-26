@@ -3,8 +3,19 @@ const path = require('path');
 const Expectation = require('../models/expectationModel');
 
 exports.getAllExpectations = async (req, res) => {
-    const data = await Expectation.find().sort({ createdAt: -1 });
-    res.json(data);
+    try {
+        const data = await Expectation.find().sort({ createdAt: -1 });
+
+        // Add full URL to image paths
+        const expectationsWithFullUrls = data.map(item => ({
+            ...item._doc,
+            image: item.image ? `${req.protocol}://${req.get('host')}/uploads/expectations/${item.image}` : null
+        }));
+
+        res.json(expectationsWithFullUrls);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch expectations' });
+    }
 };
 
 exports.createExpectation = async (req, res) => {
@@ -13,7 +24,14 @@ exports.createExpectation = async (req, res) => {
         const image = req.file ? req.file.filename : '';
 
         const newEntry = await Expectation.create({ title, description, image });
-        res.status(201).json(newEntry);
+
+        // Return the full URL in the response
+        const responseData = {
+            ...newEntry._doc,
+            image: image ? `${req.protocol}://${req.get('host')}/uploads/expectations/${image}` : null
+        };
+
+        res.status(201).json(responseData);
     } catch (err) {
         res.status(500).json({ error: 'Failed to create expectation' });
     }
@@ -38,7 +56,14 @@ exports.updateExpectation = async (req, res) => {
         }
 
         const updated = await Expectation.findByIdAndUpdate(id, updateData, { new: true });
-        res.json(updated);
+
+        // Return the full URL in the response
+        const responseData = {
+            ...updated._doc,
+            image: updated.image ? `${req.protocol}://${req.get('host')}/uploads/expectations/${updated.image}` : null
+        };
+
+        res.json(responseData);
     } catch (err) {
         res.status(500).json({ error: 'Failed to update expectation' });
     }

@@ -1,11 +1,10 @@
-// multerConfig.js
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        let folder = 'uploads';
+        let folder = path.join(__dirname, '..', 'uploads'); // Ensure we're in the project root
 
         // Check the route to determine the correct subfolder
         if (req.originalUrl.includes('/upload-report')) {
