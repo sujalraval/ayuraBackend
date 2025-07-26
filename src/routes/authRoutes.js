@@ -24,38 +24,60 @@ const generateToken = (user) => {
 
 // Start Google OAuth
 router.get('/google', (req, res, next) => {
-    console.log('Initiating Google OAuth...');
+    const state = req.query.redirect
+        ? Buffer.from(JSON.stringify({ redirect: req.query.redirect })).toString('base64')
+        : undefined;
+
     passport.authenticate('google', {
         scope: ['profile', 'email'],
         accessType: 'offline',
-        prompt: 'consent'
+        prompt: 'consent',
+        state: state
     })(req, res, next);
 });
 
 // Handle Google OAuth callback
 router.get('/google/callback',
     passport.authenticate('google', {
-        failureRedirect: `${process.env.CLIENT_URL}/auth/error`,
+        failureRedirect: '/auth/error',
         session: false
     }),
     (req, res) => {
         try {
-            console.log('Google OAuth success, user:', req.user);
             const token = generateToken(req.user);
+            let redirectUrl = '/';
 
-            // **FIXED**: Use production URL for redirect
-            const clientUrl = process.env.CLIENT_URL || 'https://ayuras.life';
-            const redirectUrl = `${clientUrl}/?token=${token}`;
+            // Handle state parameter if it exists
+            if (req.query.state) {
+                try {
+                    const state = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+                    if (state.redirect) {
+                        redirectUrl = state.redirect;
+                    }
+                } catch (e) {
+                    console.error('Error parsing state:', e);
+                }
+            }
 
-            console.log('Redirecting to:', redirectUrl);
-            res.redirect(redirectUrl);
+            // Use secure protocol if in production
+            const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+            const domain = process.env.NODE_ENV === 'production'
+                ? process.env.CLIENT_URL || 'https://ayuras.life'
+                : process.env.CLIENT_URL || 'http://localhost:5173';
+
+            const fullRedirectUrl = `${domain}${redirectUrl}?token=${token}`;
+            res.redirect(fullRedirectUrl);
+
         } catch (error) {
             console.error('Callback error:', error);
-            const clientUrl = process.env.CLIENT_URL || 'https://ayuras.life';
-            res.redirect(`${clientUrl}/auth/error`);
+            const domain = process.env.NODE_ENV === 'production'
+                ? process.env.CLIENT_URL || 'https://ayuras.life'
+                : process.env.CLIENT_URL || 'http://localhost:5173';
+            res.redirect(`${domain}/auth/error`);
         }
     }
 );
+
 
 // Get current logged-in user
 router.get('/me', async (req, res) => {
