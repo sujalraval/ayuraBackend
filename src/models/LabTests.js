@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const LabTestSchema = new mongoose.Schema({
     name: { type: String, required: true },
     alias: { type: String },
-    category: { type: String, required: true },
+    category: { type: String }, // Changed from required: true to optional
     description: { type: String },
     parameters: { type: String },
     sample: { type: String },

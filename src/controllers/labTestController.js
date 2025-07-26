@@ -39,8 +39,6 @@ exports.getLabTestsByCategorySlug = async (req, res) => {
         });
 
         console.log('Found tests count:', tests.length);
-
-        // Always return an array, even if empty
         return res.json(tests);
 
     } catch (err) {
@@ -52,24 +50,21 @@ exports.getLabTestsByCategorySlug = async (req, res) => {
     }
 };
 
-// Get lab tests by category name (alternative method)
-exports.getLabTestsByCategoryName = async (req, res) => {
+// Get uncategorized lab tests
+exports.getUncategorizedLabTests = async (req, res) => {
     try {
-        const categoryName = decodeURIComponent(req.params.name);
-        console.log('Fetching tests for category name:', categoryName);
-
         const tests = await LabTest.find({
-            category: {
-                $regex: new RegExp(`^${categoryName}$`, 'i')
-            }
+            $or: [
+                { category: { $exists: false } },
+                { category: null },
+                { category: '' }
+            ]
         });
-
-        console.log('Found tests count:', tests.length);
         res.json(tests);
     } catch (err) {
-        console.error('Error fetching lab tests by category name:', err);
+        console.error('Error fetching uncategorized lab tests:', err);
         res.status(500).json({
-            error: 'Failed to fetch lab tests by category name',
+            error: 'Failed to fetch uncategorized lab tests',
             message: err.message
         });
     }
