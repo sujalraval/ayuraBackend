@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 
-// Helper function to generate full image URL
+// Helper function to generate full file URL
 const getImageUrl = (req, filename, subfolder = '') => {
     if (!filename) return null;
 
@@ -10,9 +10,16 @@ const getImageUrl = (req, filename, subfolder = '') => {
     const host = 'ayuras.life';
 
     // Construct URL path with subfolder
-    const fullUrl = `${protocol}://${host}/uploads/${subfolder}/${filename}`;
+    let urlPath;
+    if (subfolder) {
+        urlPath = `uploads/${subfolder}/${filename}`;
+    } else {
+        urlPath = `uploads/${filename}`;
+    }
 
-    console.log('Generated image URL:', fullUrl);
+    const fullUrl = `${protocol}://${host}/${urlPath}`;
+
+    console.log('Generated file URL:', fullUrl);
     console.log('Subfolder:', subfolder, 'Filename:', filename);
 
     return fullUrl;
@@ -20,8 +27,9 @@ const getImageUrl = (req, filename, subfolder = '') => {
 
 // Helper function to get the physical file path
 const getFilePath = (filename, subfolder = '') => {
-    // This utility is in src/utils/ and uploads is in src/uploads/
+    // Get the base uploads directory path
     const basePath = path.join(__dirname, '..', 'uploads');
+
     if (subfolder) {
         return path.join(basePath, subfolder, filename);
     }
@@ -33,6 +41,13 @@ const verifyFileExists = (filePath) => {
     const exists = fs.existsSync(filePath);
     console.log(`File ${filePath} exists:`, exists);
     console.log(`Absolute path: ${path.resolve(filePath)}`);
+
+    if (exists) {
+        const stats = fs.statSync(filePath);
+        console.log(`File size: ${stats.size} bytes`);
+        console.log(`Last modified: ${stats.mtime}`);
+    }
+
     return exists;
 };
 
@@ -80,11 +95,17 @@ const getUploadDestination = (req) => {
     }
 };
 
+// Helper to get absolute uploads path
+const getUploadsPath = () => {
+    return path.join(__dirname, '..', 'uploads');
+};
+
 module.exports = {
     getImageUrl,
     getFilePath,
     verifyFileExists,
     deleteFile,
     ensureDirectoryExists,
-    getUploadDestination
+    getUploadDestination,
+    getUploadsPath
 };
