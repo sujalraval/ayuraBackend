@@ -56,18 +56,22 @@ app.use(cors({
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 
-// Handle preflight requests
+// Handle preflight requests globally
 app.options('*', cors());
 
-// Special middleware for static files with proper CORS headers
+// ✅ Fixed CORS for /uploads (static image access)
 app.use('/uploads', (req, res, next) => {
-    // Set CORS headers for all static file requests
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+
+    if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+    }
+
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.header('Cross-Origin-Resource-Policy', 'cross-origin');
 
-    // Handle preflight requests
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -75,7 +79,6 @@ app.use('/uploads', (req, res, next) => {
     next();
 }, express.static(path.join(__dirname, 'uploads'), {
     setHeaders: (res, filePath) => {
-        // Set proper Content-Type based on file extension
         const ext = path.extname(filePath).toLowerCase();
         if (ext === '.png') {
             res.set('Content-Type', 'image/png');
@@ -85,10 +88,9 @@ app.use('/uploads', (req, res, next) => {
             res.set('Content-Type', 'image/gif');
         }
 
-        // Cache control
         res.set('Cache-Control', 'public, max-age=86400');
     }
-});
+}));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
