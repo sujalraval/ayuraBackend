@@ -59,14 +59,22 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-// Static files middleware with simplified CORS
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-    setHeaders: (res, filePath) => {
-        // Set CORS headers for all static files
-        res.set('Access-Control-Allow-Origin', '*');
-        res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+// Special middleware for static files with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+    // Set CORS headers for all static file requests
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
 
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    next();
+}, express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res, filePath) => {
         // Set proper Content-Type based on file extension
         const ext = path.extname(filePath).toLowerCase();
         if (ext === '.png') {
