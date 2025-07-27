@@ -14,6 +14,7 @@ exports.getAllExpectations = async (req, res) => {
 
         res.json(expectationsWithFullUrls);
     } catch (err) {
+        console.error('Error fetching expectations:', err);
         res.status(500).json({ error: 'Failed to fetch expectations' });
     }
 };
@@ -21,18 +22,22 @@ exports.getAllExpectations = async (req, res) => {
 exports.createExpectation = async (req, res) => {
     try {
         const { title, description } = req.body;
-        const image = req.file ? req.file.filename : '';
+        if (!req.file) {
+            return res.status(400).json({ error: 'Image is required' });
+        }
 
+        const image = req.file.filename;
         const newEntry = await Expectation.create({ title, description, image });
 
         // Return the full URL in the response
         const responseData = {
             ...newEntry._doc,
-            image: image ? `${req.protocol}://${req.get('host')}/uploads/expectations/${image}` : null
+            image: `${req.protocol}://${req.get('host')}/uploads/expectations/${image}`
         };
 
         res.status(201).json(responseData);
     } catch (err) {
+        console.error('Error creating expectation:', err);
         res.status(500).json({ error: 'Failed to create expectation' });
     }
 };
@@ -67,6 +72,7 @@ exports.updateExpectation = async (req, res) => {
 
         res.json(responseData);
     } catch (err) {
+        console.error('Error updating expectation:', err);
         res.status(500).json({ error: 'Failed to update expectation' });
     }
 };
@@ -88,6 +94,7 @@ exports.deleteExpectation = async (req, res) => {
         await existing.deleteOne();
         res.json({ success: true });
     } catch (err) {
+        console.error('Error deleting expectation:', err);
         res.status(500).json({ error: 'Failed to delete expectation' });
     }
 };
