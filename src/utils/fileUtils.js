@@ -5,18 +5,14 @@ const fs = require('fs');
 const getImageUrl = (req, filename, subfolder = '') => {
     if (!filename) return null;
 
-    // Get the protocol - in production, use https if behind a proxy
-    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    // Always use HTTPS for production
+    const protocol = 'https';
+    const host = 'ayuras.life';
 
-    // Get the host - handle production domains properly
-    const host = req.get('x-forwarded-host') || req.get('host');
-
-    // Construct URL path with optional subfolder
-    const urlPath = subfolder ? `uploads/${subfolder}/${filename}` : `uploads/${filename}`;
-    const fullUrl = `https://ayuras.life/uploads/${subfolder}/${filename}`;
+    // Construct URL path with subfolder
+    const fullUrl = `${protocol}://${host}/uploads/${subfolder}/${filename}`;
 
     console.log('Generated image URL:', fullUrl);
-    console.log('Protocol:', protocol, 'Host:', host);
     console.log('Subfolder:', subfolder, 'Filename:', filename);
 
     return fullUrl;

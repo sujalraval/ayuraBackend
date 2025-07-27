@@ -48,11 +48,9 @@ const corsOptions = {
         const isAllowed = allowedOrigins.some(allowedOrigin => {
             // Handle both exact match and wildcard subdomains
             if (allowedOrigin === origin) return true;
-
             // Handle www variations
             if (allowedOrigin.includes('www.') && origin === allowedOrigin.replace('www.', '')) return true;
             if (!allowedOrigin.includes('www.') && origin === allowedOrigin.replace('https://', 'https://www.')) return true;
-
             return false;
         });
 
@@ -62,7 +60,7 @@ const corsOptions = {
         } else {
             console.log('CORS blocked origin:', origin);
             console.log('Allowed origins:', allowedOrigins);
-            callback(new Error('Not allowed by CORS'));
+            callback(null, true); // TEMPORARILY ALLOW ALL FOR STATIC FILES
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -87,7 +85,7 @@ const corsOptions = {
 // Apply CORS globally
 app.use(cors(corsOptions));
 
-// Handle preflight requests globally with detailed logging
+// Handle preflight requests globally
 app.options('*', (req, res, next) => {
     console.log('=== PREFLIGHT REQUEST ===');
     console.log('Origin:', req.get('Origin'));
@@ -95,16 +93,12 @@ app.options('*', (req, res, next) => {
     console.log('Headers:', req.get('Access-Control-Request-Headers'));
     console.log('URL:', req.url);
 
-    // Manually set CORS headers for preflight
     const origin = req.get('Origin');
-    if (origin && allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control');
-        res.header('Access-Control-Allow-Credentials', 'true');
-        res.header('Access-Control-Max-Age', '86400'); // 24 hours
-    }
-
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
     res.status(200).end();
 });
 
@@ -120,84 +114,65 @@ app.use(helmet({
             scriptSrc: ["'self'"],
             connectSrc: ["'self'", "https:", "http:", "*.ayuras.life"],
             fontSrc: ["'self'", "https:", "data:"],
+            objectSrc: ["'self'", "*.ayuras.life"], // Allow PDFs
+            frameSrc: ["'self'", "*.ayuras.life"], // Allow PDF iframe
         },
     } : false
 }));
-// Static file serving
-app.use('/uploads', express.static(path.join(__dirname, '..', 'src', 'uploads'), {
-    setHeaders: (res, path) => {
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.set('Cross-Origin-Opener-Policy', 'same-origin');
-        res.set('Cache-Control', 'public, max-age=31536000');
+
+// CRITICAL: Enhanced static file serving with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+    console.log('=== STATIC FILE REQUEST ===');
+    console.log('URL:', req.url);
+    console.log('Origin:', req.get('Origin'));
+    console.log('Method:', req.method);
+
+    // Set CORS headers for static files
+    const origin = req.get('Origin');
+    if (origin && allowedOrigins.includes(origin)) {
+        res.set('Access-Control-Allow-Origin', origin);
+    } else {
+        res.set('Access-Control-Allow-Origin', '*'); // Allow all for static files
+    }
+
+    res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Vary', 'Origin');
+
+    // Handle OPTIONS request for static files
+    if (req.method === 'OPTIONS') {
+        console.log('OPTIONS request for static file');
+        return res.status(200).end();
+    }
+
+    next();
+}, express.static(path.join(__dirname, 'src', 'uploads'), {
+    setHeaders: (res, filePath) => {
+        console.log('Setting headers for static file:', filePath);
+
+        // Set appropriate content type
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.jpg' || ext === '.jpeg') {
+            res.set('Content-Type', 'image/jpeg');
+        } else if (ext === '.png') {
+            res.set('Content-Type', 'image/png');
+        } else if (ext === '.pdf') {
+            res.set('Content-Type', 'application/pdf');
+            res.set('Content-Disposition', 'inline'); // Display PDF in browser
+        }
+
+        // Cache control
+        if (process.env.NODE_ENV === 'production') {
+            res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
+        } else {
+            res.set('Cache-Control', 'no-cache');
+        }
+
+        console.log('Final headers for static file:', res.getHeaders());
     }
 }));
-// CRITICAL: Enhanced static file serving with proper CORS headers
-// app.use('/uploads', (req, res, next) => {
-//     console.log('=== STATIC FILE REQUEST ===');
-//     console.log('URL:', req.url);
-//     console.log('Origin:', req.get('Origin'));
-//     console.log('Method:', req.method);
-//     console.log('Headers:', req.headers);
-
-//     // Set CORS headers for static files
-//     const origin = req.get('Origin');
-
-//     if (origin) {
-//         // Check if origin is allowed
-//         const isAllowed = allowedOrigins.includes(origin);
-//         if (isAllowed) {
-//             res.set('Access-Control-Allow-Origin', origin);
-//             console.log('CORS: Origin allowed for static file:', origin);
-//         } else {
-//             console.log('CORS: Origin NOT allowed for static file:', origin);
-//             // Still allow for direct access but log it
-//             res.set('Access-Control-Allow-Origin', '*');
-//         }
-//     } else {
-//         // For direct access (no origin), allow all
-//         res.set('Access-Control-Allow-Origin', '*');
-//         console.log('CORS: No origin, allowing all for static file');
-//     }
-
-//     res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-//     res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-//     res.set('Access-Control-Allow-Credentials', 'true');
-//     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-//     res.set('Vary', 'Origin');
-
-//     // Handle OPTIONS request for static files
-//     if (req.method === 'OPTIONS') {
-//         console.log('OPTIONS request for static file');
-//         return res.status(200).end();
-//     }
-
-//     next();
-// }, express.static(path.join(__dirname, 'src', 'uploads'), {
-//     setHeaders: (res, filePath) => {
-//         console.log('Setting headers for static file:', filePath);
-
-//         // Set appropriate content type
-//         const ext = path.extname(filePath).toLowerCase();
-//         if (ext === '.jpg' || ext === '.jpeg') {
-//             res.set('Content-Type', 'image/jpeg');
-//         } else if (ext === '.png') {
-//             res.set('Content-Type', 'image/png');
-//         } else if (ext === '.pdf') {
-//             res.set('Content-Type', 'application/pdf');
-//         }
-
-//         // Cache control
-//         if (process.env.NODE_ENV === 'production') {
-//             res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
-//         } else {
-//             res.set('Cache-Control', 'no-cache');
-//         }
-
-//         console.log('Final headers for static file:', res.getHeaders());
-//     }
-// }));
-
-
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -221,8 +196,10 @@ app.use(session({
 // Passport middleware
 app.use(passport.initialize());
 app.use(passport.session());
+
 // API Routes - MUST come after static files but before catch-all
 app.use('/api/v1', require('./src/routes'));
+
 // Handle 404 for API routes only
 app.use('/api/*', (req, res) => {
     res.status(404).json({
@@ -258,7 +235,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-
     console.log(`
 🚀 Server is running....
 📡 Environment: ${process.env.NODE_ENV}
@@ -267,7 +243,7 @@ const server = app.listen(PORT, () => {
 🔗 API Base URL: https://ayuras.life/api/v1
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
 🔧 Trust proxy: ${app.get('trust proxy')}
-    `);
+`);
 });
 
 process.on('unhandledRejection', (err, promise) => {
