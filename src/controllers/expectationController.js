@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const Expectation = require('../models/expectationModel');
 const { getImageUrl, getFilePath, verifyFileExists, deleteFile } = require('../utils/fileUtils');
 
@@ -12,10 +11,17 @@ exports.getAllExpectations = async (req, res) => {
 
             if (item.image) {
                 const imagePath = getFilePath(item.image, 'expectations');
+                console.log(`Checking image for expectation ${item._id}: ${item.image}`);
+                console.log(`Full path: ${imagePath}`);
+
                 if (verifyFileExists(imagePath)) {
                     imageUrl = getImageUrl(req, item.image, 'expectations');
+                    console.log(`Generated URL: ${imageUrl}`);
                 } else {
                     console.warn(`Image file not found for expectation ${item._id}: ${imagePath}`);
+                    // Optionally update database to remove missing image reference
+                    // item.image = null;
+                    // item.save();
                 }
             }
 
@@ -28,7 +34,8 @@ exports.getAllExpectations = async (req, res) => {
         console.log('Fetched expectations with URLs:', expectationsWithFullUrls.map(item => ({
             id: item._id,
             title: item.title,
-            imageUrl: item.image
+            imageUrl: item.image,
+            hasImage: !!item.image
         })));
 
         res.json({
@@ -68,6 +75,7 @@ exports.createExpectation = async (req, res) => {
 
         console.log('Creating expectation with image:', image);
         console.log('File saved at:', req.file.path);
+        console.log('File size:', req.file.size);
 
         // Verify file was actually saved
         if (!verifyFileExists(req.file.path)) {
@@ -80,12 +88,13 @@ exports.createExpectation = async (req, res) => {
         const newEntry = await Expectation.create({ title, description, image });
 
         // Return the full URL in the response
+        const imageUrl = getImageUrl(req, image, 'expectations');
         const responseData = {
             ...newEntry._doc,
-            image: getImageUrl(req, image, 'expectations')
+            image: imageUrl
         };
 
-        console.log('Created expectation with URL:', responseData.image);
+        console.log('Created expectation with URL:', imageUrl);
 
         res.status(201).json({
             success: true,
@@ -154,12 +163,13 @@ exports.updateExpectation = async (req, res) => {
         });
 
         // Return the full URL in the response
+        const imageUrl = updated.image ? getImageUrl(req, updated.image, 'expectations') : null;
         const responseData = {
             ...updated._doc,
-            image: getImageUrl(req, updated.image, 'expectations')
+            image: imageUrl
         };
 
-        console.log('Updated expectation with URL:', responseData.image);
+        console.log('Updated expectation with URL:', imageUrl);
 
         res.json({
             success: true,
@@ -226,7 +236,7 @@ exports.deleteExpectation = async (req, res) => {
     }
 };
 
-// Optional: Verify image endpoint
+// Debug endpoint to check file status
 exports.verifyImage = async (req, res) => {
     try {
         const { filename } = req.params;
@@ -234,13 +244,17 @@ exports.verifyImage = async (req, res) => {
 
         if (verifyFileExists(imagePath)) {
             const stats = fs.statSync(imagePath);
+            const imageUrl = getImageUrl(req, filename, 'expectations');
+
             res.json({
                 success: true,
                 filename,
                 path: imagePath,
                 size: stats.size,
-                url: getImageUrl(req, filename, 'expectations'),
-                accessible: true
+                url: imageUrl,
+                accessible: true,
+                createdAt: stats.birthtime,
+                modifiedAt: stats.mtime
             });
         } else {
             res.status(404).json({

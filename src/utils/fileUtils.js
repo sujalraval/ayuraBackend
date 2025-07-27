@@ -5,15 +5,18 @@ const fs = require('fs');
 const getImageUrl = (req, filename, subfolder = '') => {
     if (!filename) return null;
 
-    // Use environment-based URL construction
-    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-    const host = req.get('host') || 'localhost:5000';
-
+    // Get the protocol - in production, use https if behind a proxy
+    const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
+    
+    // Get the host - handle production domains properly
+    const host = req.get('x-forwarded-host') || req.get('host');
+    
     // Construct URL path with optional subfolder
     const urlPath = subfolder ? `uploads/${subfolder}/${filename}` : `uploads/${filename}`;
     const fullUrl = `${protocol}://${host}/${urlPath}`;
 
     console.log('Generated image URL:', fullUrl);
+    console.log('Protocol:', protocol, 'Host:', host);
     return fullUrl;
 };
 
@@ -21,7 +24,7 @@ const getImageUrl = (req, filename, subfolder = '') => {
 const getFilePath = (filename, subfolder = '') => {
     // Assuming this utility is in src/utils/ and uploads is in src/uploads/
     const basePath = path.join(__dirname, '..', 'uploads');
-
+    
     if (subfolder) {
         return path.join(basePath, subfolder, filename);
     }

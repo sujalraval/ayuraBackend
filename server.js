@@ -19,7 +19,7 @@ connectDB();
 
 const app = express();
 
-// Trust proxy for production
+// Trust proxy for production (IMPORTANT for production)
 app.set('trust proxy', 1);
 
 const allowedOrigins = [
@@ -59,15 +59,97 @@ app.use(cors({
 // Handle preflight requests globally
 app.options('*', cors());
 
-// Replace your current static file serving with this:
-app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
-    setHeaders: (res, path) => {
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.set('Cross-Origin-Opener-Policy', 'same-origin');
-        res.set('Cache-Control', 'public, max-age=31536000');
-    }
+// Updated Helmet configuration for production file serving
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+        directives: {
+            defaultSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:", "http:"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            connectSrc: ["'self'", "https:", "http:"],
+        },
+    } : false
 }));
 
+// Static file serving with enhanced configuration for production
+app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
+    setHeaders: (res, filePath) => {
+        console.log('Serving static file:', filePath);
+
+        // Set CORS headers for images
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'GET');
+        res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
+        // Set appropriate content type
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.jpg' || ext === '.jpeg') {
+            res.set('Content-Type', 'image/jpeg');
+        } else if (ext === '.png') {
+            res.set('Content-Type', 'image/png');
+        } else if (ext === '.pdf') {
+            res.set('Content-Type', 'application/pdf');
+        }
+
+        // Cache control
+        if (process.env.NODE_ENV === 'production') {
+            res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
+        } else {
+            res.set('Cache-Control', 'no-cache');
+        }
+    },
+    // Enable directory indexing in development for debugging
+    index: process.env.NODE_ENV !== 'production'
+}));
+
+// Add debug route for production file serving
+app.get('/debug/uploads/:subfolder/:filename?', (req, res) => {
+    const { subfolder, filename } = req.params;
+
+    if (!filename) {
+        // List files in subfolder
+        const dirPath = path.join(__dirname, 'src', 'uploads', subfolder);
+
+        try {
+            if (fs.existsSync(dirPath)) {
+                const files = fs.readdirSync(dirPath);
+                res.json({
+                    success: true,
+                    path: dirPath,
+                    files: files,
+                    count: files.length
+                });
+            } else {
+                res.status(404).json({
+                    success: false,
+                    error: 'Directory not found',
+                    path: dirPath
+                });
+            }
+        } catch (err) {
+            res.status(500).json({
+                success: false,
+                error: err.message
+            });
+        }
+    } else {
+        // Check specific file
+        const filePath = path.join(__dirname, 'src', 'uploads', subfolder, filename);
+        const fileExists = fs.existsSync(filePath);
+
+        res.json({
+            success: true,
+            filename,
+            path: filePath,
+            exists: fileExists,
+            url: `${req.protocol}://${req.get('host')}/uploads/${subfolder}/${filename}`,
+            absolutePath: path.resolve(filePath)
+        });
+    }
+});
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -100,6 +182,13 @@ if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, 'client/build')));
 
     app.get('*', (req, res) => {
+        // Skip API routes and uploads
+        if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+            return res.status(404).json({
+                success: false,
+                message: `Route ${req.originalUrl} not found`
+            });
+        }
         res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
     });
 }
@@ -139,7 +228,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🌐 Port: ${PORT}
 📊 Database: Connected
 🔗 API Base URL: http://localhost:${PORT}/api/v1
-📁 Static files: ${path.join(__dirname, 'uploads')}
+📁 Static files: ${path.join(__dirname, 'src', 'uploads')}
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
   `);
 });
