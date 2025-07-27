@@ -123,86 +123,81 @@ app.use(helmet({
         },
     } : false
 }));
-
-// CRITICAL: Enhanced static file serving with proper CORS headers
-app.use('/uploads', (req, res, next) => {
-    console.log('=== STATIC FILE REQUEST ===');
-    console.log('URL:', req.url);
-    console.log('Origin:', req.get('Origin'));
-    console.log('Method:', req.method);
-    console.log('Headers:', req.headers);
-
-    // Set CORS headers for static files
-    const origin = req.get('Origin');
-
-    if (origin) {
-        // Check if origin is allowed
-        const isAllowed = allowedOrigins.includes(origin);
-        if (isAllowed) {
-            res.set('Access-Control-Allow-Origin', origin);
-            console.log('CORS: Origin allowed for static file:', origin);
-        } else {
-            console.log('CORS: Origin NOT allowed for static file:', origin);
-            // Still allow for direct access but log it
-            res.set('Access-Control-Allow-Origin', '*');
-        }
-    } else {
-        // For direct access (no origin), allow all
-        res.set('Access-Control-Allow-Origin', '*');
-        console.log('CORS: No origin, allowing all for static file');
-    }
-
-    res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.set('Access-Control-Allow-Credentials', 'true');
-    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.set('Vary', 'Origin');
-
-    // Handle OPTIONS request for static files
-    if (req.method === 'OPTIONS') {
-        console.log('OPTIONS request for static file');
-        return res.status(200).end();
-    }
-
-    next();
-}, express.static(path.join(__dirname, 'src', 'uploads'), {
-    setHeaders: (res, filePath) => {
-        console.log('Setting headers for static file:', filePath);
-
-        // Set appropriate content type
-        const ext = path.extname(filePath).toLowerCase();
-        if (ext === '.jpg' || ext === '.jpeg') {
-            res.set('Content-Type', 'image/jpeg');
-        } else if (ext === '.png') {
-            res.set('Content-Type', 'image/png');
-        } else if (ext === '.pdf') {
-            res.set('Content-Type', 'application/pdf');
-        }
-
-        // Cache control
-        if (process.env.NODE_ENV === 'production') {
-            res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
-        } else {
-            res.set('Cache-Control', 'no-cache');
-        }
-
-        console.log('Final headers for static file:', res.getHeaders());
+// Static file serving
+app.use('/uploads', express.static(path.join(__dirname, '..', 'src', 'uploads'), {
+    setHeaders: (res, path) => {
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.set('Cross-Origin-Opener-Policy', 'same-origin');
+        res.set('Cache-Control', 'public, max-age=31536000');
     }
 }));
+// CRITICAL: Enhanced static file serving with proper CORS headers
+// app.use('/uploads', (req, res, next) => {
+//     console.log('=== STATIC FILE REQUEST ===');
+//     console.log('URL:', req.url);
+//     console.log('Origin:', req.get('Origin'));
+//     console.log('Method:', req.method);
+//     console.log('Headers:', req.headers);
 
-// Add CORS debugging middleware for all requests
-app.use((req, res, next) => {
-    if (req.method === 'OPTIONS' || req.get('Origin')) {
-        console.log('=== CORS DEBUG ===');
-        console.log('Method:', req.method);
-        console.log('Origin:', req.get('Origin'));
-        console.log('User-Agent:', req.get('User-Agent'));
-        console.log('Referer:', req.get('Referer'));
-        console.log('Request URL:', req.url);
-        console.log('Request Path:', req.path);
-    }
-    next();
-});
+//     // Set CORS headers for static files
+//     const origin = req.get('Origin');
+
+//     if (origin) {
+//         // Check if origin is allowed
+//         const isAllowed = allowedOrigins.includes(origin);
+//         if (isAllowed) {
+//             res.set('Access-Control-Allow-Origin', origin);
+//             console.log('CORS: Origin allowed for static file:', origin);
+//         } else {
+//             console.log('CORS: Origin NOT allowed for static file:', origin);
+//             // Still allow for direct access but log it
+//             res.set('Access-Control-Allow-Origin', '*');
+//         }
+//     } else {
+//         // For direct access (no origin), allow all
+//         res.set('Access-Control-Allow-Origin', '*');
+//         console.log('CORS: No origin, allowing all for static file');
+//     }
+
+//     res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+//     res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+//     res.set('Access-Control-Allow-Credentials', 'true');
+//     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+//     res.set('Vary', 'Origin');
+
+//     // Handle OPTIONS request for static files
+//     if (req.method === 'OPTIONS') {
+//         console.log('OPTIONS request for static file');
+//         return res.status(200).end();
+//     }
+
+//     next();
+// }, express.static(path.join(__dirname, 'src', 'uploads'), {
+//     setHeaders: (res, filePath) => {
+//         console.log('Setting headers for static file:', filePath);
+
+//         // Set appropriate content type
+//         const ext = path.extname(filePath).toLowerCase();
+//         if (ext === '.jpg' || ext === '.jpeg') {
+//             res.set('Content-Type', 'image/jpeg');
+//         } else if (ext === '.png') {
+//             res.set('Content-Type', 'image/png');
+//         } else if (ext === '.pdf') {
+//             res.set('Content-Type', 'application/pdf');
+//         }
+
+//         // Cache control
+//         if (process.env.NODE_ENV === 'production') {
+//             res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
+//         } else {
+//             res.set('Cache-Control', 'no-cache');
+//         }
+
+//         console.log('Final headers for static file:', res.getHeaders());
+//     }
+// }));
+
+
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -226,129 +221,8 @@ app.use(session({
 // Passport middleware
 app.use(passport.initialize());
 app.use(passport.session());
-
 // API Routes - MUST come after static files but before catch-all
 app.use('/api/v1', require('./src/routes'));
-
-// Debug endpoint for CORS testing
-app.get('/debug/cors', (req, res) => {
-    res.json({
-        origin: req.get('Origin'),
-        userAgent: req.get('User-Agent'),
-        referer: req.get('Referer'),
-        allowedOrigins: allowedOrigins,
-        headers: req.headers,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Debug endpoint to check upload directory
-app.get('/debug/uploads', (req, res) => {
-    const uploadsPath = path.join(__dirname, 'src', 'uploads');
-    const expectationsPath = path.join(uploadsPath, 'expectations');
-
-    try {
-        const uploadsExists = fs.existsSync(uploadsPath);
-        const expectationsExists = fs.existsSync(expectationsPath);
-
-        let files = [];
-        if (expectationsExists) {
-            files = fs.readdirSync(expectationsPath);
-        }
-
-        res.json({
-            uploadsPath,
-            expectationsPath,
-            uploadsExists,
-            expectationsExists,
-            files: files.slice(0, 10), // Show first 10 files
-            totalFiles: files.length,
-            sampleUrls: files.slice(0, 3).map(file =>
-                `https://ayuras.life/uploads/expectations/${file}`
-            ),
-            corsHeaders: {
-                'Access-Control-Allow-Origin': req.get('Origin') || '*',
-                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-                'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept'
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            error: error.message,
-            uploadsPath,
-            expectationsPath
-        });
-    }
-});
-
-// Test endpoint for image CORS
-app.get('/debug/test-image/:filename', (req, res) => {
-    const { filename } = req.params;
-    const filePath = path.join(__dirname, 'src', 'uploads', 'expectations', filename);
-
-    console.log('=== IMAGE TEST DEBUG ===');
-    console.log('Filename:', filename);
-    console.log('File path:', filePath);
-    console.log('File exists:', fs.existsSync(filePath));
-    console.log('Origin:', req.get('Origin'));
-
-    if (fs.existsSync(filePath)) {
-        const origin = req.get('Origin');
-
-        // Set CORS headers
-        if (origin && allowedOrigins.includes(origin)) {
-            res.set('Access-Control-Allow-Origin', origin);
-        } else {
-            res.set('Access-Control-Allow-Origin', '*');
-        }
-
-        res.set('Access-Control-Allow-Methods', 'GET');
-        res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-
-        // Send the file
-        res.sendFile(filePath);
-    } else {
-        res.status(404).json({
-            error: 'File not found',
-            filename,
-            filePath,
-            expectedLocation: `/uploads/expectations/${filename}`
-        });
-    }
-});
-
-// In production, serve React app for remaining routes (NOT uploads or API)
-if (process.env.NODE_ENV === 'production') {
-    // Serve static files from client build
-    app.use(express.static(path.join(__dirname, 'client/build')));
-
-    // Catch-all handler: send back React's index.html file for SPA routing
-    // This should be LAST and should NOT catch /uploads or /api routes
-    app.get('*', (req, res) => {
-        // Skip API routes, uploads, and debug routes
-        if (req.path.startsWith('/api') ||
-            req.path.startsWith('/uploads') ||
-            req.path.startsWith('/debug')) {
-            return res.status(404).json({
-                success: false,
-                message: `Route ${req.originalUrl} not found`
-            });
-        }
-
-        // For all other routes, serve the React app
-        const indexPath = path.join(__dirname, 'client/build', 'index.html');
-        if (fs.existsSync(indexPath)) {
-            res.sendFile(indexPath);
-        } else {
-            res.status(404).json({
-                success: false,
-                message: 'React build not found'
-            });
-        }
-    });
-}
-
 // Handle 404 for API routes only
 app.use('/api/*', (req, res) => {
     res.status(404).json({
@@ -383,9 +257,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-    const uploadsPath = path.join(__dirname, 'src', 'uploads');
-    const expectationsPath = path.join(uploadsPath, 'expectations');
+const server = app.listen(PORT, () => {
 
     console.log(`
 🚀 Server is running....
@@ -393,39 +265,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🌐 Port: ${PORT}
 📊 Database: Connected
 🔗 API Base URL: https://ayuras.life/api/v1
-📁 Static files: ${uploadsPath}
-📁 Expectations: ${expectationsPath}
-🖼️  Image URL format: https://ayuras.life/uploads/expectations/filename.jpg
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
 🔧 Trust proxy: ${app.get('trust proxy')}
-📁 Uploads directory exists: ${fs.existsSync(uploadsPath)}
-📁 Expectations directory exists: ${fs.existsSync(expectationsPath)}
     `);
-
-    // Check if directories exist and create them if needed
-    if (!fs.existsSync(uploadsPath)) {
-        fs.mkdirSync(uploadsPath, { recursive: true });
-        console.log('✅ Created uploads directory');
-    }
-
-    if (!fs.existsSync(expectationsPath)) {
-        fs.mkdirSync(expectationsPath, { recursive: true });
-        console.log('✅ Created expectations directory');
-    }
-
-    // List files in expectations directory
-    try {
-        const files = fs.readdirSync(expectationsPath);
-        console.log(`📁 Files in expectations directory: ${files.length}`);
-        files.slice(0, 5).forEach(file => {
-            console.log(`   - ${file}`);
-        });
-        if (files.length > 5) {
-            console.log(`   ... and ${files.length - 5} more files`);
-        }
-    } catch (err) {
-        console.log('❌ Error reading expectations directory:', err.message);
-    }
 });
 
 process.on('unhandledRejection', (err, promise) => {

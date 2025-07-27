@@ -212,6 +212,7 @@ exports.getAllOrders = async (req, res) => {
  */
 exports.approveOrder = async (req, res) => {
     try {
+        authDebug(req, 'APPROVE ORDER');
         console.log('=== APPROVE ORDER REQUEST ===');
         console.log('Order ID:', req.params.orderId);
 
@@ -226,7 +227,8 @@ exports.approveOrder = async (req, res) => {
             req.params.orderId,
             {
                 status: 'approved',
-                technicianNotes: req.body.notes || 'Order approved by admin'
+                technicianNotes: req.body.notes || 'Order approved by admin',
+                updatedAt: Date.now()
             },
             { new: true, runValidators: true }
         );
@@ -271,6 +273,7 @@ exports.approveOrder = async (req, res) => {
     }
 };
 
+
 /**
  * @desc Deny an order
  * @route PUT /api/orders/deny/:orderId
@@ -278,6 +281,7 @@ exports.approveOrder = async (req, res) => {
  */
 exports.denyOrder = async (req, res) => {
     try {
+        authDebug(req, 'DENY ORDER');
         console.log('=== DENY ORDER REQUEST ===');
         console.log('Order ID:', req.params.orderId);
 
@@ -292,7 +296,8 @@ exports.denyOrder = async (req, res) => {
             req.params.orderId,
             {
                 status: 'denied',
-                technicianNotes: req.body.notes || 'Order was denied'
+                technicianNotes: req.body.notes || 'Order was denied',
+                updatedAt: Date.now()
             },
             { new: true, runValidators: true }
         );

@@ -13,7 +13,7 @@ const getImageUrl = (req, filename, subfolder = '') => {
 
     // Construct URL path with optional subfolder
     const urlPath = subfolder ? `uploads/${subfolder}/${filename}` : `uploads/${filename}`;
-    const fullUrl = `${protocol}://${host}/${urlPath}`;
+    const fullUrl = `https://ayuras.life/uploads/${subfolder}/${filename}`;
 
     console.log('Generated image URL:', fullUrl);
     console.log('Protocol:', protocol, 'Host:', host);
