@@ -34,7 +34,7 @@ const allowedOrigins = [
 ];
 
 // Enhanced CORS middleware with proper multiple domain handling
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
         console.log('CORS Request from origin:', origin);
 
@@ -82,7 +82,10 @@ app.use(cors({
     optionsSuccessStatus: 200,
     preflightContinue: false,
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
-}));
+};
+
+// Apply CORS globally
+app.use(cors(corsOptions));
 
 // Handle preflight requests globally with detailed logging
 app.options('*', (req, res, next) => {
@@ -90,8 +93,19 @@ app.options('*', (req, res, next) => {
     console.log('Origin:', req.get('Origin'));
     console.log('Method:', req.get('Access-Control-Request-Method'));
     console.log('Headers:', req.get('Access-Control-Request-Headers'));
+    console.log('URL:', req.url);
 
-    cors()(req, res, next);
+    // Manually set CORS headers for preflight
+    const origin = req.get('Origin');
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    }
+
+    res.status(200).end();
 });
 
 // Updated Helmet configuration for production
@@ -110,27 +124,50 @@ app.use(helmet({
     } : false
 }));
 
-// CRITICAL: Static file serving MUST come before other routes
-// This serves files from /src/uploads at /uploads URL path
-app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
-    setHeaders: (res, filePath) => {
-        console.log('Serving static file:', filePath);
+// CRITICAL: Enhanced static file serving with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+    console.log('=== STATIC FILE REQUEST ===');
+    console.log('URL:', req.url);
+    console.log('Origin:', req.get('Origin'));
+    console.log('Method:', req.method);
+    console.log('Headers:', req.headers);
 
-        // Get the request origin
-        const origin = res.req.get('Origin');
+    // Set CORS headers for static files
+    const origin = req.get('Origin');
 
-        // Set CORS headers for images based on allowed origins
-        if (origin && allowedOrigins.includes(origin)) {
+    if (origin) {
+        // Check if origin is allowed
+        const isAllowed = allowedOrigins.includes(origin);
+        if (isAllowed) {
             res.set('Access-Control-Allow-Origin', origin);
-        } else if (!origin) {
-            // For direct access (no origin), allow all
+            console.log('CORS: Origin allowed for static file:', origin);
+        } else {
+            console.log('CORS: Origin NOT allowed for static file:', origin);
+            // Still allow for direct access but log it
             res.set('Access-Control-Allow-Origin', '*');
         }
+    } else {
+        // For direct access (no origin), allow all
+        res.set('Access-Control-Allow-Origin', '*');
+        console.log('CORS: No origin, allowing all for static file');
+    }
 
-        res.set('Access-Control-Allow-Methods', 'GET');
-        res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Vary', 'Origin');
+
+    // Handle OPTIONS request for static files
+    if (req.method === 'OPTIONS') {
+        console.log('OPTIONS request for static file');
+        return res.status(200).end();
+    }
+
+    next();
+}, express.static(path.join(__dirname, 'src', 'uploads'), {
+    setHeaders: (res, filePath) => {
+        console.log('Setting headers for static file:', filePath);
 
         // Set appropriate content type
         const ext = path.extname(filePath).toLowerCase();
@@ -148,10 +185,12 @@ app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
         } else {
             res.set('Cache-Control', 'no-cache');
         }
+
+        console.log('Final headers for static file:', res.getHeaders());
     }
 }));
 
-// Add CORS debugging middleware
+// Add CORS debugging middleware for all requests
 app.use((req, res, next) => {
     if (req.method === 'OPTIONS' || req.get('Origin')) {
         console.log('=== CORS DEBUG ===');
@@ -160,6 +199,7 @@ app.use((req, res, next) => {
         console.log('User-Agent:', req.get('User-Agent'));
         console.log('Referer:', req.get('Referer'));
         console.log('Request URL:', req.url);
+        console.log('Request Path:', req.path);
     }
     next();
 });
@@ -225,13 +265,55 @@ app.get('/debug/uploads', (req, res) => {
             totalFiles: files.length,
             sampleUrls: files.slice(0, 3).map(file =>
                 `https://ayuras.life/uploads/expectations/${file}`
-            )
+            ),
+            corsHeaders: {
+                'Access-Control-Allow-Origin': req.get('Origin') || '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept'
+            }
         });
     } catch (error) {
         res.status(500).json({
             error: error.message,
             uploadsPath,
             expectationsPath
+        });
+    }
+});
+
+// Test endpoint for image CORS
+app.get('/debug/test-image/:filename', (req, res) => {
+    const { filename } = req.params;
+    const filePath = path.join(__dirname, 'src', 'uploads', 'expectations', filename);
+
+    console.log('=== IMAGE TEST DEBUG ===');
+    console.log('Filename:', filename);
+    console.log('File path:', filePath);
+    console.log('File exists:', fs.existsSync(filePath));
+    console.log('Origin:', req.get('Origin'));
+
+    if (fs.existsSync(filePath)) {
+        const origin = req.get('Origin');
+
+        // Set CORS headers
+        if (origin && allowedOrigins.includes(origin)) {
+            res.set('Access-Control-Allow-Origin', origin);
+        } else {
+            res.set('Access-Control-Allow-Origin', '*');
+        }
+
+        res.set('Access-Control-Allow-Methods', 'GET');
+        res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+
+        // Send the file
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({
+            error: 'File not found',
+            filename,
+            filePath,
+            expectedLocation: `/uploads/expectations/${filename}`
         });
     }
 });
@@ -329,6 +411,20 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     if (!fs.existsSync(expectationsPath)) {
         fs.mkdirSync(expectationsPath, { recursive: true });
         console.log('✅ Created expectations directory');
+    }
+
+    // List files in expectations directory
+    try {
+        const files = fs.readdirSync(expectationsPath);
+        console.log(`📁 Files in expectations directory: ${files.length}`);
+        files.slice(0, 5).forEach(file => {
+            console.log(`   - ${file}`);
+        });
+        if (files.length > 5) {
+            console.log(`   ... and ${files.length - 5} more files`);
+        }
+    } catch (err) {
+        console.log('❌ Error reading expectations directory:', err.message);
     }
 });
 
