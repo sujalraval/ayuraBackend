@@ -19,10 +19,9 @@ connectDB();
 
 const app = express();
 
-// Trust proxy for production (important for HTTPS)
+// Trust proxy for production
 app.set('trust proxy', 1);
 
-// Update allowedOrigins to include your production domains
 const allowedOrigins = [
     'https://admin.ayuras.life',
     'https://www.admin.ayuras.life',
@@ -60,14 +59,28 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-// ENHANCED Static files middleware - THIS IS THE KEY FIX
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+// CRITICAL FIX: Enhanced Static files middleware with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+    // Set CORS headers BEFORE express.static processes the request
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    // Handle preflight requests for images
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
+    next();
+}, express.static(path.join(__dirname, 'uploads'), {
     maxAge: '1d',
     etag: false,
     setHeaders: (res, filePath) => {
-        // Set proper headers for different file types
         const ext = path.extname(filePath).toLowerCase();
 
+        // Set proper Content-Type
         if (ext === '.png') {
             res.set('Content-Type', 'image/png');
         } else if (ext === '.jpg' || ext === '.jpeg') {
@@ -76,59 +89,15 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
             res.set('Content-Type', 'image/gif');
         }
 
-        // Enable CORS for all origins
+        // CRITICAL: Set CORS headers again in setHeaders
         res.set('Access-Control-Allow-Origin', '*');
-        res.set('Access-Control-Allow-Methods', 'GET');
+        res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-
-        // Prevent caching issues
         res.set('Cache-Control', 'public, max-age=86400');
 
-        console.log('Serving static file:', filePath, 'Content-Type:', res.get('Content-Type'));
+        console.log('Serving static file with CORS headers:', filePath);
     }
 }));
-
-// Directory verification function
-const verifyUploadsDirectory = () => {
-    const uploadsPath = path.join(__dirname, 'uploads');
-    const expectationsPath = path.join(uploadsPath, 'expectations');
-
-    console.log('=== UPLOADS DIRECTORY VERIFICATION ===');
-    console.log('Server directory:', __dirname);
-    console.log('Uploads path:', uploadsPath);
-    console.log('Uploads exists:', fs.existsSync(uploadsPath));
-    console.log('Expectations path:', expectationsPath);
-    console.log('Expectations exists:', fs.existsSync(expectationsPath));
-
-    // Create directories if they don't exist
-    if (!fs.existsSync(uploadsPath)) {
-        fs.mkdirSync(uploadsPath, { recursive: true });
-        console.log('Created uploads directory');
-    }
-
-    if (!fs.existsSync(expectationsPath)) {
-        fs.mkdirSync(expectationsPath, { recursive: true });
-        console.log('Created expectations directory');
-    }
-
-    if (fs.existsSync(expectationsPath)) {
-        const files = fs.readdirSync(expectationsPath);
-        console.log('Files in expectations folder:', files.length);
-        console.log('Sample files:', files.slice(0, 5));
-
-        // Check specific file if it exists
-        const targetFile = '1753604347973-63268070.png';
-        const targetPath = path.join(expectationsPath, targetFile);
-        console.log(`Target file (${targetFile}) exists:`, fs.existsSync(targetPath));
-
-        if (fs.existsSync(targetPath)) {
-            const stats = fs.statSync(targetPath);
-            console.log('File size:', stats.size, 'bytes');
-            console.log('File permissions:', stats.mode.toString(8));
-        }
-    }
-    console.log('=== END VERIFICATION ===');
-};
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -153,25 +122,24 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Serve static files from React app if in production
-if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, 'client/build')));
-}
-
-// Log incoming requests
-app.use((req, res, next) => {
-    console.log(`Incoming ${req.method} request to ${req.path} from ${req.headers.origin}`);
-    next();
-});
-
-// EMERGENCY DIRECT IMAGE SERVING ROUTE - Add this before API routes
+// EMERGENCY: Direct image serving route with explicit CORS headers
 app.get('/uploads/expectations/:filename', (req, res) => {
     const filename = req.params.filename;
     const imagePath = path.join(__dirname, 'uploads', 'expectations', filename);
 
     console.log('Direct image request for:', filename);
-    console.log('Full path:', imagePath);
-    console.log('File exists:', fs.existsSync(imagePath));
+    console.log('Origin:', req.headers.origin);
+
+    // Set CORS headers explicitly
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
 
     if (fs.existsSync(imagePath)) {
         const stat = fs.statSync(imagePath);
@@ -184,26 +152,37 @@ app.get('/uploads/expectations/:filename', (req, res) => {
 
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Length', stat.size);
-        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Cache-Control', 'public, max-age=86400');
 
-        console.log('Serving image with headers:', {
+        console.log('Serving image with CORS headers:', {
             'Content-Type': contentType,
-            'Content-Length': stat.size
+            'Access-Control-Allow-Origin': '*'
         });
 
         const stream = fs.createReadStream(imagePath);
         stream.pipe(res);
     } else {
         console.log('Image not found:', imagePath);
-        res.status(404).json({ error: 'Image not found', path: imagePath });
+        res.status(404).json({ error: 'Image not found' });
     }
+});
+
+// Handle OPTIONS requests for the direct route
+app.options('/uploads/expectations/:filename', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.status(200).end();
 });
 
 // Test route for debugging
 app.get('/test-image/:filename', (req, res) => {
     const filename = req.params.filename;
     const imagePath = path.join(__dirname, 'uploads', 'expectations', filename);
+
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
     console.log('Testing image access:', imagePath);
     console.log('File exists:', fs.existsSync(imagePath));
@@ -218,37 +197,10 @@ app.get('/test-image/:filename', (req, res) => {
 // API Routes
 app.use('/api/v1', require('./src/routes'));
 
-// Debug route to check uploads directory
-app.get('/debug/uploads', (req, res) => {
-    const uploadsPath = path.join(__dirname, 'uploads');
-    try {
-        const stats = fs.statSync(uploadsPath);
-        const expectationsPath = path.join(uploadsPath, 'expectations');
-        const expectationsExists = fs.existsSync(expectationsPath);
-
-        let expectationFiles = [];
-        if (expectationsExists) {
-            expectationFiles = fs.readdirSync(expectationsPath);
-        }
-
-        res.json({
-            uploadsPath,
-            exists: stats.isDirectory(),
-            expectationsPath,
-            expectationsExists,
-            expectationFiles: expectationFiles.slice(0, 10)
-        });
-    } catch (error) {
-        res.json({
-            uploadsPath,
-            exists: false,
-            error: error.message
-        });
-    }
-});
-
 // In production, serve React app for all other routes
 if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, 'client/build')));
+
     app.get('*', (req, res) => {
         res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
     });
@@ -274,28 +226,6 @@ app.use((err, req, res, next) => {
         });
     }
 
-    if (err.name === 'CastError') {
-        return res.status(404).json({
-            success: false,
-            message: 'Resource not found'
-        });
-    }
-
-    if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map(val => val.message).join(', ');
-        return res.status(400).json({
-            success: false,
-            message
-        });
-    }
-
-    if (err.code === 11000) {
-        return res.status(400).json({
-            success: false,
-            message: 'Duplicate field value entered'
-        });
-    }
-
     res.status(500).json({
         success: false,
         message: process.env.NODE_ENV === 'production' ? 'Server Error' : err.message
@@ -312,10 +242,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 📊 Database: Connected
 🔗 API Base URL: http://localhost:${PORT}/api/v1
 📁 Static files: ${path.join(__dirname, 'uploads')}
+🌐 CORS enabled for: ${allowedOrigins.join(', ')}
   `);
-
-    // Verify uploads directory on startup
-    verifyUploadsDirectory();
 });
 
 process.on('unhandledRejection', (err, promise) => {
