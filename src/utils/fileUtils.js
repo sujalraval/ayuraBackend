@@ -7,24 +7,25 @@ const getImageUrl = (req, filename, subfolder = '') => {
 
     // Get the protocol - in production, use https if behind a proxy
     const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
-    
+
     // Get the host - handle production domains properly
     const host = req.get('x-forwarded-host') || req.get('host');
-    
+
     // Construct URL path with optional subfolder
     const urlPath = subfolder ? `uploads/${subfolder}/${filename}` : `uploads/${filename}`;
     const fullUrl = `${protocol}://${host}/${urlPath}`;
 
     console.log('Generated image URL:', fullUrl);
     console.log('Protocol:', protocol, 'Host:', host);
+    console.log('Subfolder:', subfolder, 'Filename:', filename);
+
     return fullUrl;
 };
 
 // Helper function to get the physical file path
 const getFilePath = (filename, subfolder = '') => {
-    // Assuming this utility is in src/utils/ and uploads is in src/uploads/
+    // This utility is in src/utils/ and uploads is in src/uploads/
     const basePath = path.join(__dirname, '..', 'uploads');
-    
     if (subfolder) {
         return path.join(basePath, subfolder, filename);
     }

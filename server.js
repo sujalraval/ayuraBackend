@@ -110,7 +110,8 @@ app.use(helmet({
     } : false
 }));
 
-// Static file serving with enhanced CORS headers
+// CRITICAL: Static file serving MUST come before other routes
+// This serves files from /src/uploads at /uploads URL path
 app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
     setHeaders: (res, filePath) => {
         console.log('Serving static file:', filePath);
@@ -143,7 +144,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
 
         // Cache control
         if (process.env.NODE_ENV === 'production') {
-            res.set('Cache-Control', 'public, max-age=31536000');
+            res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
         } else {
             res.set('Cache-Control', 'no-cache');
         }
@@ -186,7 +187,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// API Routes
+// API Routes - MUST come after static files but before catch-all
 app.use('/api/v1', require('./src/routes'));
 
 // Debug endpoint for CORS testing
@@ -201,27 +202,76 @@ app.get('/debug/cors', (req, res) => {
     });
 });
 
-// In production, serve React app for all other routes
+// Debug endpoint to check upload directory
+app.get('/debug/uploads', (req, res) => {
+    const uploadsPath = path.join(__dirname, 'src', 'uploads');
+    const expectationsPath = path.join(uploadsPath, 'expectations');
+
+    try {
+        const uploadsExists = fs.existsSync(uploadsPath);
+        const expectationsExists = fs.existsSync(expectationsPath);
+
+        let files = [];
+        if (expectationsExists) {
+            files = fs.readdirSync(expectationsPath);
+        }
+
+        res.json({
+            uploadsPath,
+            expectationsPath,
+            uploadsExists,
+            expectationsExists,
+            files: files.slice(0, 10), // Show first 10 files
+            totalFiles: files.length,
+            sampleUrls: files.slice(0, 3).map(file =>
+                `https://ayuras.life/uploads/expectations/${file}`
+            )
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: error.message,
+            uploadsPath,
+            expectationsPath
+        });
+    }
+});
+
+// In production, serve React app for remaining routes (NOT uploads or API)
 if (process.env.NODE_ENV === 'production') {
+    // Serve static files from client build
     app.use(express.static(path.join(__dirname, 'client/build')));
 
+    // Catch-all handler: send back React's index.html file for SPA routing
+    // This should be LAST and should NOT catch /uploads or /api routes
     app.get('*', (req, res) => {
-        // Skip API routes and uploads
-        if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/debug')) {
+        // Skip API routes, uploads, and debug routes
+        if (req.path.startsWith('/api') ||
+            req.path.startsWith('/uploads') ||
+            req.path.startsWith('/debug')) {
             return res.status(404).json({
                 success: false,
                 message: `Route ${req.originalUrl} not found`
             });
         }
-        res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+
+        // For all other routes, serve the React app
+        const indexPath = path.join(__dirname, 'client/build', 'index.html');
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            res.status(404).json({
+                success: false,
+                message: 'React build not found'
+            });
+        }
     });
 }
 
-// Handle 404 routes
-app.use('*', (req, res) => {
+// Handle 404 for API routes only
+app.use('/api/*', (req, res) => {
     res.status(404).json({
         success: false,
-        message: `Route ${req.originalUrl} not found`
+        message: `API Route ${req.originalUrl} not found`
     });
 });
 
@@ -232,6 +282,7 @@ app.use((err, req, res, next) => {
     console.error('Origin:', req.get('Origin'));
     console.error('URL:', req.originalUrl);
     console.error('Method:', req.method);
+    console.error('Stack:', err.stack);
 
     if (err.message === 'Not allowed by CORS') {
         return res.status(403).json({
@@ -251,16 +302,34 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
+    const uploadsPath = path.join(__dirname, 'src', 'uploads');
+    const expectationsPath = path.join(uploadsPath, 'expectations');
+
     console.log(`
 🚀 Server is running....
 📡 Environment: ${process.env.NODE_ENV}
 🌐 Port: ${PORT}
 📊 Database: Connected
-🔗 API Base URL: http://localhost:${PORT}/api/v1
-📁 Static files: ${path.join(__dirname, 'src', 'uploads')}
+🔗 API Base URL: https://ayuras.life/api/v1
+📁 Static files: ${uploadsPath}
+📁 Expectations: ${expectationsPath}
+🖼️  Image URL format: https://ayuras.life/uploads/expectations/filename.jpg
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
 🔧 Trust proxy: ${app.get('trust proxy')}
-  `);
+📁 Uploads directory exists: ${fs.existsSync(uploadsPath)}
+📁 Expectations directory exists: ${fs.existsSync(expectationsPath)}
+    `);
+
+    // Check if directories exist and create them if needed
+    if (!fs.existsSync(uploadsPath)) {
+        fs.mkdirSync(uploadsPath, { recursive: true });
+        console.log('✅ Created uploads directory');
+    }
+
+    if (!fs.existsSync(expectationsPath)) {
+        fs.mkdirSync(expectationsPath, { recursive: true });
+        console.log('✅ Created expectations directory');
+    }
 });
 
 process.on('unhandledRejection', (err, promise) => {
