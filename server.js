@@ -19,24 +19,49 @@ connectDB();
 
 const app = express();
 
-// Trust proxy for production (IMPORTANT for production)
+// Trust proxy for production (CRITICAL for domain detection)
 app.set('trust proxy', 1);
 
+// Define allowed origins with both your domains
 const allowedOrigins = [
     'https://admin.ayuras.life',
     'https://www.admin.ayuras.life',
+    'https://ayuras.life',
+    'https://www.ayuras.life',
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://ayuras.life'
+    'http://localhost:3000'
 ];
 
-// Enhanced CORS middleware for API routes
+// Enhanced CORS middleware with proper multiple domain handling
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        console.log('CORS Request from origin:', origin);
+
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+            console.log('No origin header - allowing request');
+            return callback(null, true);
+        }
+
+        // Check if the origin is in allowed origins
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            // Handle both exact match and wildcard subdomains
+            if (allowedOrigin === origin) return true;
+
+            // Handle www variations
+            if (allowedOrigin.includes('www.') && origin === allowedOrigin.replace('www.', '')) return true;
+            if (!allowedOrigin.includes('www.') && origin === allowedOrigin.replace('https://', 'https://www.')) return true;
+
+            return false;
+        });
+
+        if (isAllowed) {
+            console.log('Origin allowed:', origin);
             callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);
+            console.log('Allowed origins:', allowedOrigins);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -48,7 +73,10 @@ app.use(cors({
         'Accept',
         'Origin',
         'Cache-Control',
-        'X-File-Name'
+        'X-File-Name',
+        'X-Forwarded-For',
+        'X-Forwarded-Proto',
+        'X-Forwarded-Host'
     ],
     credentials: true,
     optionsSuccessStatus: 200,
@@ -56,33 +84,52 @@ app.use(cors({
     exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 
-// Handle preflight requests globally
-app.options('*', cors());
+// Handle preflight requests globally with detailed logging
+app.options('*', (req, res, next) => {
+    console.log('=== PREFLIGHT REQUEST ===');
+    console.log('Origin:', req.get('Origin'));
+    console.log('Method:', req.get('Access-Control-Request-Method'));
+    console.log('Headers:', req.get('Access-Control-Request-Headers'));
 
-// Updated Helmet configuration for production file serving
+    cors()(req, res, next);
+});
+
+// Updated Helmet configuration for production
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
         directives: {
             defaultSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:", "http:"],
+            imgSrc: ["'self'", "data:", "https:", "http:", "*.ayuras.life"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
-            connectSrc: ["'self'", "https:", "http:"],
+            connectSrc: ["'self'", "https:", "http:", "*.ayuras.life"],
+            fontSrc: ["'self'", "https:", "data:"],
         },
     } : false
 }));
 
-// Static file serving with enhanced configuration for production
+// Static file serving with enhanced CORS headers
 app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
     setHeaders: (res, filePath) => {
         console.log('Serving static file:', filePath);
 
-        // Set CORS headers for images
-        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.set('Access-Control-Allow-Origin', '*');
+        // Get the request origin
+        const origin = res.req.get('Origin');
+
+        // Set CORS headers for images based on allowed origins
+        if (origin && allowedOrigins.includes(origin)) {
+            res.set('Access-Control-Allow-Origin', origin);
+        } else if (!origin) {
+            // For direct access (no origin), allow all
+            res.set('Access-Control-Allow-Origin', '*');
+        }
+
         res.set('Access-Control-Allow-Methods', 'GET');
         res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.set('Vary', 'Origin');
 
         // Set appropriate content type
         const ext = path.extname(filePath).toLowerCase();
@@ -96,66 +143,31 @@ app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
 
         // Cache control
         if (process.env.NODE_ENV === 'production') {
-            res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
+            res.set('Cache-Control', 'public, max-age=31536000');
         } else {
             res.set('Cache-Control', 'no-cache');
         }
-    },
-    // Enable directory indexing in development for debugging
-    index: process.env.NODE_ENV !== 'production'
+    }
 }));
 
-// Add debug route for production file serving
-app.get('/debug/uploads/:subfolder/:filename?', (req, res) => {
-    const { subfolder, filename } = req.params;
-
-    if (!filename) {
-        // List files in subfolder
-        const dirPath = path.join(__dirname, 'src', 'uploads', subfolder);
-
-        try {
-            if (fs.existsSync(dirPath)) {
-                const files = fs.readdirSync(dirPath);
-                res.json({
-                    success: true,
-                    path: dirPath,
-                    files: files,
-                    count: files.length
-                });
-            } else {
-                res.status(404).json({
-                    success: false,
-                    error: 'Directory not found',
-                    path: dirPath
-                });
-            }
-        } catch (err) {
-            res.status(500).json({
-                success: false,
-                error: err.message
-            });
-        }
-    } else {
-        // Check specific file
-        const filePath = path.join(__dirname, 'src', 'uploads', subfolder, filename);
-        const fileExists = fs.existsSync(filePath);
-
-        res.json({
-            success: true,
-            filename,
-            path: filePath,
-            exists: fileExists,
-            url: `${req.protocol}://${req.get('host')}/uploads/${subfolder}/${filename}`,
-            absolutePath: path.resolve(filePath)
-        });
+// Add CORS debugging middleware
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS' || req.get('Origin')) {
+        console.log('=== CORS DEBUG ===');
+        console.log('Method:', req.method);
+        console.log('Origin:', req.get('Origin'));
+        console.log('User-Agent:', req.get('User-Agent'));
+        console.log('Referer:', req.get('Referer'));
+        console.log('Request URL:', req.url);
     }
+    next();
 });
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Session configuration
+// Session configuration with domain-specific settings
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-fallback-secret',
     resave: false,
@@ -177,13 +189,25 @@ app.use(passport.session());
 // API Routes
 app.use('/api/v1', require('./src/routes'));
 
+// Debug endpoint for CORS testing
+app.get('/debug/cors', (req, res) => {
+    res.json({
+        origin: req.get('Origin'),
+        userAgent: req.get('User-Agent'),
+        referer: req.get('Referer'),
+        allowedOrigins: allowedOrigins,
+        headers: req.headers,
+        timestamp: new Date().toISOString()
+    });
+});
+
 // In production, serve React app for all other routes
 if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.join(__dirname, 'client/build')));
 
     app.get('*', (req, res) => {
         // Skip API routes and uploads
-        if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+        if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/debug')) {
             return res.status(404).json({
                 success: false,
                 message: `Route ${req.originalUrl} not found`
@@ -201,15 +225,20 @@ app.use('*', (req, res) => {
     });
 });
 
-// Global error handling middleware
+// Enhanced global error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Global error handler:', err.stack);
+    console.error('=== GLOBAL ERROR HANDLER ===');
+    console.error('Error:', err.message);
+    console.error('Origin:', req.get('Origin'));
+    console.error('URL:', req.originalUrl);
+    console.error('Method:', req.method);
 
     if (err.message === 'Not allowed by CORS') {
         return res.status(403).json({
             success: false,
             message: 'CORS policy violation',
-            origin: req.headers.origin
+            origin: req.headers.origin,
+            allowedOrigins: allowedOrigins
         });
     }
 
@@ -230,6 +259,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🔗 API Base URL: http://localhost:${PORT}/api/v1
 📁 Static files: ${path.join(__dirname, 'src', 'uploads')}
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
+🔧 Trust proxy: ${app.get('trust proxy')}
   `);
 });
 
