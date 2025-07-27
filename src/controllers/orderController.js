@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const { sendApprovalEmail, sendReportUploadEmail } = require('../utils/emailService');
 const { validateOrder } = require('../utils/validation');
+const { getImageUrl, getFilePath, verifyFileExists, deleteFile } = require('../utils/fileUtils');
 const mongoose = require('mongoose');
 
 /**
@@ -359,71 +360,125 @@ exports.getWorkingOrders = async (req, res) => {
  * @route POST /api/orders/upload-report/:id
  * @access Private/Admin
  */
-
-
-// Upload report endpoint
 exports.uploadReport = async (req, res) => {
     try {
+        console.log('=== UPLOAD REPORT REQUEST ===');
+        console.log('Order ID:', req.params.id);
+        console.log('File uploaded:', req.file ? req.file.filename : 'No file');
+
+        // Validate order ID format
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid order ID format'
+            });
+        }
+
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: 'No file uploaded'
+                message: 'No report file uploaded'
             });
         }
 
         const orderId = req.params.id;
-        const reportUrl = `/uploads/reports/${req.file.filename}`;
+        const filename = req.file.filename;
+
+        console.log('File saved at:', req.file.path);
+        console.log('Generated filename:', filename);
+
+        // Verify file was actually saved
+        if (!verifyFileExists(req.file.path)) {
+            return res.status(500).json({
+                success: false,
+                message: 'File upload failed - file not found after save'
+            });
+        }
+
+        // Generate the report URL using utility function
+        const reportUrl = getImageUrl(req, filename, 'reports');
+
+        console.log('Generated report URL:', reportUrl);
 
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
             {
                 status: 'report submitted',
                 reportUrl: reportUrl,
+                reportFilename: filename, // Store filename for future operations
                 updatedAt: Date.now()
             },
-            { new: true }
+            { new: true, runValidators: true }
         );
 
         if (!updatedOrder) {
             // Delete the uploaded file if order not found
-            fs.unlinkSync(req.file.path);
+            const filePath = getFilePath(filename, 'reports');
+            deleteFile(filePath);
+
             return res.status(404).json({
                 success: false,
                 message: 'Order not found'
             });
         }
 
+        console.log('✅ Order updated with report:', {
+            id: updatedOrder._id,
+            status: updatedOrder.status,
+            reportUrl: updatedOrder.reportUrl
+        });
+
         // Send email notification
         try {
-            await sendReportUploadEmail({
-                patientName: updatedOrder.patientInfo.name,
-                patientEmail: updatedOrder.patientInfo.email,
-                reportUrl: `${req.protocol}://${req.get('host')}${reportUrl}`
-            });
+            if (updatedOrder.patientInfo.email) {
+                await sendReportUploadEmail({
+                    patientName: updatedOrder.patientInfo.name,
+                    patientEmail: updatedOrder.patientInfo.email,
+                    reportUrl: reportUrl
+                });
+                console.log('✅ Report upload email sent');
+            }
         } catch (emailError) {
-            console.error('Email sending failed (non-critical):', emailError.message);
+            console.error('⚠️ Email sending failed (non-critical):', emailError.message);
             // Continue even if email fails
+        }
+
+        // Emit real-time update if socket.io is available
+        if (req.app.get('io')) {
+            req.app.get('io').emit('orderUpdate', {
+                orderId: updatedOrder._id,
+                status: updatedOrder.status,
+                reportUrl: updatedOrder.reportUrl
+            });
         }
 
         res.status(200).json({
             success: true,
             message: 'Report uploaded successfully',
-            order: updatedOrder
+            data: {
+                order: updatedOrder,
+                reportUrl: reportUrl,
+                filename: filename
+            }
         });
+
     } catch (error) {
+        console.error('❌ Upload report error:', error);
+
         // Clean up the uploaded file if error occurs
         if (req.file) {
-            fs.unlinkSync(req.file.path).catch(unlinkError => {
-                console.error('Error deleting uploaded file:', unlinkError);
-            });
+            const filePath = getFilePath(req.file.filename, 'reports');
+            deleteFile(filePath);
         }
 
         res.status(500).json({
             success: false,
-            message: error.message || 'Server error'
+            message: 'Failed to upload report',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
         });
     }
 };
+
 /**
  * @desc Get user's orders
  * @route GET /api/orders/user

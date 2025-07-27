@@ -1,27 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const upload = require('../config/multerConfig'); // Use centralized multer config
 const {
     getAllTestimonials,
     createTestimonial,
     updateTestimonial,
-    deleteTestimonial
+    deleteTestimonial,
+    getTestimonialById,
+    verifyImage
 } = require('../controllers/testimonialController');
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/testimonials/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueName = `${Date.now()}-${file.originalname}`;
-        cb(null, uniqueName);
-    }
-});
-
-const upload = multer({ storage });
 
 // GET all testimonials
 router.get('/', getAllTestimonials);
+
+// GET single testimonial by ID
+router.get('/:id', getTestimonialById);
 
 // POST new testimonial
 router.post('/', upload.single('image'), createTestimonial);
@@ -31,5 +24,8 @@ router.put('/:id', upload.single('image'), updateTestimonial);
 
 // DELETE testimonial
 router.delete('/:id', deleteTestimonial);
+
+// Optional: Verify image accessibility (for debugging)
+router.get('/verify-image/:filename', verifyImage);
 
 module.exports = router;

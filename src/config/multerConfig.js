@@ -1,30 +1,25 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { getFilePath, ensureDirectoryExists, getUploadDestination } = require('../utils/fileUtils');
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        let folder = path.join(__dirname, '..', 'uploads'); // Ensure we're in the project root
+        // Get the appropriate subfolder based on route
+        const subfolder = getUploadDestination(req);
 
-        // Check the route to determine the correct subfolder
-        if (req.originalUrl.includes('/upload-report')) {
-            folder = path.join(folder, 'reports');
-        } else if (req.baseUrl.includes('testimonials')) {
-            folder = path.join(folder, 'testimonials');
-        } else if (req.baseUrl.includes('expectations')) {
-            folder = path.join(folder, 'expectations');
-        } else {
-            folder = path.join(folder, 'others');
-        }
+        // Get the full folder path
+        const folder = path.join(__dirname, '..', 'uploads', subfolder);
 
         // Create directory if it doesn't exist
-        fs.mkdirSync(folder, { recursive: true });
-
-        console.log('Multer destination folder:', folder);
-        console.log('Folder exists:', fs.existsSync(folder));
-
-        cb(null, folder);
+        if (ensureDirectoryExists(folder)) {
+            console.log('Multer destination folder:', folder);
+            console.log('Absolute path:', path.resolve(folder));
+            cb(null, folder);
+        } else {
+            cb(new Error('Failed to create upload directory'), null);
+        }
     },
+
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
         const filename = uniqueSuffix + path.extname(file.originalname);
