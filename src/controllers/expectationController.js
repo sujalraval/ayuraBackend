@@ -6,11 +6,14 @@ const Expectation = require('../models/expectationModel');
 const getImageUrl = (req, filename) => {
     if (!filename) return null;
 
-    // Use the actual host from request
-    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-    const host = req.get('host');
+    // Force HTTPS for production, use the main domain
+    const protocol = 'https';
+    const host = 'ayuras.life'; // Use main domain, not admin subdomain
 
-    return `${protocol}://${host}/uploads/expectations/${filename}`;
+    const fullUrl = `${protocol}://${host}/uploads/expectations/${filename}`;
+    console.log('Generated image URL:', fullUrl);
+
+    return fullUrl;
 };
 
 exports.getAllExpectations = async (req, res) => {
