@@ -30,7 +30,6 @@ const allowedOrigins = [
     'https://ayuras.life'
 ];
 
-
 // Enhanced CORS middleware
 app.use(cors({
     origin: function (origin, callback) {
@@ -60,8 +59,17 @@ app.use(cors({
 
 // Handle preflight requests
 app.options('*', cors());
-// In server.js, add this before the API routes and after the other middleware
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Static files middleware - MOVED UP BEFORE OTHER MIDDLEWARE
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+    maxAge: '1d',
+    etag: false,
+    setHeaders: (res, path) => {
+        res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.set('Access-Control-Allow-Origin', '*');
+    }
+}));
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -98,6 +106,37 @@ app.use((req, res, next) => {
 
 // API Routes
 app.use('/api/v1', require('./src/routes'));
+
+// Debug route to check uploads directory
+app.get('/debug/uploads', (req, res) => {
+    const fs = require('fs');
+    const uploadsPath = path.join(__dirname, 'uploads');
+
+    try {
+        const stats = fs.statSync(uploadsPath);
+        const expectationsPath = path.join(uploadsPath, 'expectations');
+        const expectationsExists = fs.existsSync(expectationsPath);
+        let expectationFiles = [];
+
+        if (expectationsExists) {
+            expectationFiles = fs.readdirSync(expectationsPath);
+        }
+
+        res.json({
+            uploadsPath,
+            exists: stats.isDirectory(),
+            expectationsPath,
+            expectationsExists,
+            expectationFiles: expectationFiles.slice(0, 10) // Show first 10 files
+        });
+    } catch (error) {
+        res.json({
+            uploadsPath,
+            exists: false,
+            error: error.message
+        });
+    }
+});
 
 // In production, serve React app for all other routes
 if (process.env.NODE_ENV === 'production') {
@@ -163,6 +202,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 🌐 Port: ${PORT}
 📊 Database: Connected
 🔗 API Base URL: http://localhost:${PORT}/api/v1
+📁 Static files: ${path.join(__dirname, 'uploads')}
 `);
 });
 

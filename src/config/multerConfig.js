@@ -19,20 +19,35 @@ const storage = multer.diskStorage({
 
         // Create directory if it doesn't exist
         fs.mkdirSync(folder, { recursive: true });
+
+        console.log('Multer destination folder:', folder);
+        console.log('Folder exists:', fs.existsSync(folder));
+
         cb(null, folder);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
+        const filename = uniqueSuffix + path.extname(file.originalname);
+
+        console.log('Generated filename:', filename);
+        console.log('Original filename:', file.originalname);
+
+        cb(null, filename);
     }
 });
 
 const fileFilter = (req, file, cb) => {
+    console.log('File filter - MIME type:', file.mimetype);
+    console.log('File filter - Original name:', file.originalname);
+
     // Allow both images and PDFs
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     if (!allowedTypes.includes(file.mimetype)) {
+        console.log('File rejected - invalid MIME type');
         return cb(new Error('Only JPEG, JPG, PNG images and PDF files are allowed'), false);
     }
+
+    console.log('File accepted');
     cb(null, true);
 };
 
