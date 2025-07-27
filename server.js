@@ -104,6 +104,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Enhanced static file middleware with detailed logging
+// In the static file middleware section, update the headers part:
 app.use('/uploads', (req, res, next) => {
     console.log('=== STATIC FILE REQUEST ===');
     console.log('Requested URL:', req.url);
@@ -153,6 +154,7 @@ app.use('/uploads', (req, res, next) => {
         if (ext === '.pdf') {
             res.set('Content-Type', 'application/pdf');
             res.set('Content-Disposition', 'inline; filename="' + path.basename(filePath) + '"');
+            res.set('Cross-Origin-Resource-Policy', 'cross-origin');
             console.log('Set PDF headers');
         } else if (ext === '.jpg' || ext === '.jpeg') {
             res.set('Content-Type', 'image/jpeg');

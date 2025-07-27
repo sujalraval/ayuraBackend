@@ -28,7 +28,7 @@ const getImageUrl = (req, filename, subfolder = '') => {
 // Helper function to get the physical file path
 const getFilePath = (filename, subfolder = '') => {
     // Get the base uploads directory path
-    const basePath = path.join(__dirname, '..', 'uploads');
+    const basePath = path.join(__dirname, '..', 'src', 'uploads');
 
     if (subfolder) {
         return path.join(basePath, subfolder, filename);
@@ -97,7 +97,7 @@ const getUploadDestination = (req) => {
 
 // Helper to get absolute uploads path
 const getUploadsPath = () => {
-    return path.join(__dirname, '..', 'uploads');
+    return path.join(__dirname, '..', 'src', 'uploads');
 };
 
 module.exports = {

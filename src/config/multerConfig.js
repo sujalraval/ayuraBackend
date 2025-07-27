@@ -8,7 +8,7 @@ const storage = multer.diskStorage({
         const subfolder = getUploadDestination(req);
 
         // Get the full folder path
-        const folder = path.join(__dirname, '..', 'uploads', subfolder);
+        const folder = path.join(__dirname, '..', 'src', 'uploads', subfolder);
 
         // Create directory if it doesn't exist
         if (ensureDirectoryExists(folder)) {
@@ -36,8 +36,18 @@ const fileFilter = (req, file, cb) => {
     console.log('File filter - Original name:', file.originalname);
 
     // Allow both images and PDFs
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowedTypes.includes(file.mimetype)) {
+    const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+        'application/pdf',
+        'application/octet-stream' // Fallback for some PDF uploads
+    ];
+
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    const isPdf = fileExt === '.pdf';
+
+    if (!allowedTypes.includes(file.mimetype) && !isPdf) {
         console.log('File rejected - invalid MIME type');
         return cb(new Error('Only JPEG, JPG, PNG images and PDF files are allowed'), false);
     }
