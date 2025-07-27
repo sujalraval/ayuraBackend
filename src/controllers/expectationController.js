@@ -47,11 +47,13 @@ exports.updateExpectation = async (req, res) => {
         const updateData = { title, description };
 
         if (req.file) {
-            const oldPath = path.join(__dirname, '..', 'uploads', 'expectations', existing.image);
-            if (existing.image && fs.existsSync(oldPath)) {
-                fs.unlinkSync(oldPath);
+            // Delete old image if it exists
+            if (existing.image) {
+                const oldPath = path.join(__dirname, '..', 'uploads', 'expectations', existing.image);
+                if (fs.existsSync(oldPath)) {
+                    fs.unlinkSync(oldPath);
+                }
             }
-
             updateData.image = req.file.filename;
         }
 
@@ -75,6 +77,7 @@ exports.deleteExpectation = async (req, res) => {
         const existing = await Expectation.findById(id);
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
+        // Delete the associated image file
         if (existing.image) {
             const imagePath = path.join(__dirname, '..', 'uploads', 'expectations', existing.image);
             if (fs.existsSync(imagePath)) {
