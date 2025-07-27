@@ -6,13 +6,12 @@ const Expectation = require('../models/expectationModel');
 const getImageUrl = (req, filename) => {
     if (!filename) return null;
 
-    // Force HTTPS for production, use the main domain
+    // Use main domain consistently
     const protocol = 'https';
-    const host = 'ayuras.life'; // Use main domain, not admin subdomain
-
+    const host = 'ayuras.life';
     const fullUrl = `${protocol}://${host}/uploads/expectations/${filename}`;
-    console.log('Generated image URL:', fullUrl);
 
+    console.log('Generated image URL:', fullUrl);
     return fullUrl;
 };
 
@@ -48,6 +47,7 @@ exports.createExpectation = async (req, res) => {
         }
 
         const image = req.file.filename;
+
         console.log('Creating expectation with image:', image);
         console.log('File saved at:', req.file.path);
 
@@ -71,6 +71,7 @@ exports.updateExpectation = async (req, res) => {
     try {
         const { id } = req.params;
         const existing = await Expectation.findById(id);
+
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
         const { title, description } = req.body;
@@ -87,6 +88,7 @@ exports.updateExpectation = async (req, res) => {
                     console.log('Deleted old image:', oldPath);
                 }
             }
+
             updateData.image = req.file.filename;
         }
 
@@ -110,6 +112,7 @@ exports.deleteExpectation = async (req, res) => {
     try {
         const { id } = req.params;
         const existing = await Expectation.findById(id);
+
         if (!existing) return res.status(404).json({ error: 'Not found' });
 
         // Delete the associated image file
