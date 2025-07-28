@@ -10,18 +10,19 @@ const {
     updateAdmin,
     deleteAdmin,
     refreshToken,
-    adminLogout
+    adminLogout,
+    verifyAdmin // Add this
 } = require('../controllers/adminController');
 
 const { adminAuth, authorize } = require('../middleware/adminAuth');
 
 // Public routes
 router.post('/login', adminLogin);
-// router.post('/create-super-admin', createSuperAdmin); // Remove in production
 router.post('/refresh-token', refreshToken);
 router.post('/logout', adminLogout);
 
 // Protected routes
+router.get('/verify', adminAuth, verifyAdmin); // Add this route
 router.get('/profile', adminAuth, getAdminProfile);
 router.put('/profile', adminAuth, updateAdmin);
 

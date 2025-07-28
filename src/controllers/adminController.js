@@ -105,6 +105,46 @@ exports.adminLogin = async (req, res) => {
     }
 };
 
+// Add this to your adminController.js
+// Verify admin token and return admin details
+/** * @desc    Verify admin token
+ * @route   GET /api/v1/admin/verify
+ * @access  Private
+ */
+exports.verifyAdmin = async (req, res) => {
+    try {
+        // The adminAuth middleware already verified the token and attached the admin
+        const admin = req.admin || req.user;
+
+        if (!admin) {
+            return res.status(401).json({
+                success: false,
+                message: 'Admin not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Admin verified successfully',
+            admin: {
+                id: admin._id || admin.id,
+                email: admin.email,
+                name: admin.name,
+                role: admin.role,
+                isActive: admin.isActive
+            }
+        });
+    } catch (error) {
+        console.error('Admin verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during verification',
+            error: error.message
+        });
+    }
+};
+
+
 /**
  * @desc    Create super admin (for initial setup only)
  * @route   POST /api/v1/admin/create-super-admin

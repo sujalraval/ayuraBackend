@@ -5,6 +5,23 @@ const { validateOrder } = require('../utils/validation');
 const { getImageUrl, getFilePath, verifyFileExists, deleteFile } = require('../utils/fileUtils');
 const mongoose = require('mongoose');
 
+// Add auth debugging function
+const authDebug = (req, action) => {
+    console.log(`=== ${action} AUTH DEBUG ===`);
+    console.log('Headers:', {
+        authorization: req.headers.authorization ? 'Present' : 'Missing',
+        contentType: req.headers['content-type']
+    });
+    console.log('User/Admin:', {
+        hasUser: !!req.user,
+        hasAdmin: !!req.admin,
+        userId: req.user?.id || req.user?._id,
+        adminId: req.admin?.id || req.admin?._id,
+        userEmail: req.user?.email,
+        adminEmail: req.admin?.email
+    });
+};
+
 /**
  * @desc Place a new order
  * @route POST /api/orders/place
@@ -123,6 +140,8 @@ exports.placeOrder = async (req, res) => {
  */
 exports.getPendingOrders = async (req, res) => {
     try {
+        authDebug(req, 'GET PENDING ORDERS');
+
         const orders = await Order.find({
             status: { $regex: /^pending$/i }
         })
@@ -134,13 +153,16 @@ exports.getPendingOrders = async (req, res) => {
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
 
+        const allStatuses = await Order.distinct('status');
+
         res.json({
             success: true,
             count: orders.length,
             orders,
             debug: {
                 totalOrdersInDB: totalOrders,
-                statusCounts
+                statusCounts,
+                allStatuses
             }
         });
 
@@ -161,6 +183,8 @@ exports.getPendingOrders = async (req, res) => {
  */
 exports.getAllOrders = async (req, res) => {
     try {
+        authDebug(req, 'GET ALL ORDERS');
+
         const filter = {};
 
         if (req.query.status) {
@@ -215,6 +239,7 @@ exports.approveOrder = async (req, res) => {
         authDebug(req, 'APPROVE ORDER');
         console.log('=== APPROVE ORDER REQUEST ===');
         console.log('Order ID:', req.params.orderId);
+        console.log('Request body:', req.body);
 
         if (!mongoose.Types.ObjectId.isValid(req.params.orderId)) {
             return res.status(400).json({
@@ -273,7 +298,6 @@ exports.approveOrder = async (req, res) => {
     }
 };
 
-
 /**
  * @desc Deny an order
  * @route PUT /api/orders/deny/:orderId
@@ -284,6 +308,7 @@ exports.denyOrder = async (req, res) => {
         authDebug(req, 'DENY ORDER');
         console.log('=== DENY ORDER REQUEST ===');
         console.log('Order ID:', req.params.orderId);
+        console.log('Request body:', req.body);
 
         if (!mongoose.Types.ObjectId.isValid(req.params.orderId)) {
             return res.status(400).json({
@@ -338,6 +363,8 @@ exports.denyOrder = async (req, res) => {
  */
 exports.getWorkingOrders = async (req, res) => {
     try {
+        authDebug(req, 'GET WORKING ORDERS');
+
         const orders = await Order.find({
             status: { $ne: 'pending' }
         })
@@ -367,6 +394,7 @@ exports.getWorkingOrders = async (req, res) => {
  */
 exports.uploadReport = async (req, res) => {
     try {
+        authDebug(req, 'UPLOAD REPORT');
         console.log('=== UPLOAD REPORT REQUEST ===');
         console.log('Order ID:', req.params.id);
         console.log('File uploaded:', req.file ? req.file.filename : 'No file');
@@ -563,7 +591,7 @@ exports.getOrderById = async (req, res) => {
         // Check if user is authorized to view this order
         const userEmail = req.user?.email;
         const userId = req.user?.id || req.user?._id;
-        const isAdmin = req.user?.isAdmin || req.user?.role === 'admin' || req.user?.role === 'labtech';
+        const isAdmin = req.user?.isAdmin || req.user?.role === 'admin' || req.user?.role === 'labtech' || req.admin;
 
         const canAccess = isAdmin ||
             order.patientInfo.email === userEmail ||
@@ -599,6 +627,7 @@ exports.getOrderById = async (req, res) => {
  */
 exports.updateOrderStatus = async (req, res) => {
     try {
+        authDebug(req, 'UPDATE ORDER STATUS');
         console.log('=== UPDATE ORDER STATUS REQUEST ===');
         console.log('Order ID:', req.params.id);
         console.log('Request body:', req.body);
@@ -857,4 +886,19 @@ exports.getFamilyMembers = async (req, res) => {
             error: error.message
         });
     }
+};
+
+module.exports = {
+    placeOrder: exports.placeOrder,
+    getPendingOrders: exports.getPendingOrders,
+    getAllOrders: exports.getAllOrders,
+    approveOrder: exports.approveOrder,
+    denyOrder: exports.denyOrder,
+    getWorkingOrders: exports.getWorkingOrders,
+    uploadReport: exports.uploadReport,
+    getUserOrders: exports.getUserOrders,
+    getOrderById: exports.getOrderById,
+    updateOrderStatus: exports.updateOrderStatus,
+    cancelOrder: exports.cancelOrder,
+    getFamilyMembers: exports.getFamilyMembers
 };
