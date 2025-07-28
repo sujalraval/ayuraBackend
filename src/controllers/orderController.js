@@ -238,69 +238,47 @@ exports.getAllOrders = async (req, res) => {
  * @route PUT /api/orders/approve/:orderId
  * @access Private/Admin
  */
-exports.approveOrder = async (req, res) => {
+exports.approveOrder = asyncHandler(async (req, res, next) => {
     try {
-        authDebug(req, 'APPROVE ORDER');
-        console.log('=== APPROVE ORDER REQUEST ===');
-        console.log('Order ID:', req.params.orderId);
-        console.log('Request body:', req.body);
-
-        if (!mongoose.Types.ObjectId.isValid(req.params.orderId)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid order ID format'
-            });
-        }
-
-        const order = await Order.findByIdAndUpdate(
-            req.params.orderId,
-            {
-                status: 'approved',
-                technicianNotes: req.body.notes || 'Order approved by admin',
-                updatedAt: Date.now()
-            },
-            { new: true, runValidators: true }
-        );
+        const order = await Order.findById(req.params.orderId);
 
         if (!order) {
-            console.log('❌ Order not found:', req.params.orderId);
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found'
+            return next(new ErrorResponse(`Order not found with id of ${req.params.orderId}`, 404));
+        }
+
+        // Check if order is already approved
+        if (order.status === 'approved') {
+            return next(new ErrorResponse('Order is already approved', 400));
+        }
+
+        // Update order status
+        order.status = 'approved';
+        order.approvedBy = req.admin.id;
+        order.approvedAt = Date.now();
+
+        await order.save();
+
+        // Send approval notification (optional)
+        try {
+            await sendEmail({
+                email: order.patientInfo.email,
+                subject: 'Your Lab Test Order Has Been Approved',
+                message: `Your order #${order._id} has been approved and is being processed.`
             });
+        } catch (emailError) {
+            console.error('Failed to send approval email:', emailError);
         }
 
-        console.log('✅ Order approved:', {
-            id: order._id,
-            status: order.status,
-            patientEmail: order.patientInfo?.email
-        });
-
-        // Send approval email to patient if email service is available
-        if (order.patientInfo.email && order.patientInfo.timeSlot) {
-            try {
-                await sendApprovalEmail(order.patientInfo.email, order.patientInfo.timeSlot);
-                console.log('✅ Approval email sent');
-            } catch (emailError) {
-                console.log('⚠️ Email sending failed (non-critical):', emailError.message);
-            }
-        }
-
-        res.json({
+        res.status(200).json({
             success: true,
-            message: 'Order approved successfully',
-            order
+            data: order
         });
 
-    } catch (error) {
-        console.error('❌ Approve error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to approve order',
-            error: error.message
-        });
+    } catch (err) {
+        console.error('Error approving order:', err);
+        next(new ErrorResponse('Failed to approve order', 500));
     }
-};
+});
 
 /**
  * @desc Deny an order
