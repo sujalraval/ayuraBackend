@@ -6,41 +6,9 @@ exports.getAllExpectations = async (req, res) => {
     try {
         const data = await Expectation.find().sort({ createdAt: -1 });
 
-        const expectationsWithFullUrls = data.map(item => {
-            let imageUrl = null;
-
-            if (item.image) {
-                const imagePath = getFilePath(item.image, 'expectations');
-                console.log(`Checking image for expectation ${item._id}: ${item.image}`);
-                console.log(`Full path: ${imagePath}`);
-
-                if (verifyFileExists(imagePath)) {
-                    imageUrl = getImageUrl(req, item.image, 'expectations');
-                    console.log(`Generated URL: ${imageUrl}`);
-                } else {
-                    console.warn(`Image file not found for expectation ${item._id}: ${imagePath}`);
-                    // Optionally update database to remove missing image reference
-                    // item.image = null;
-                    // item.save();
-                }
-            }
-
-            return {
-                ...item._doc,
-                image: imageUrl
-            };
-        });
-
-        console.log('Fetched expectations with URLs:', expectationsWithFullUrls.map(item => ({
-            id: item._id,
-            title: item.title,
-            imageUrl: item.image,
-            hasImage: !!item.image
-        })));
-
         res.json({
             success: true,
-            data: expectationsWithFullUrls
+            data: data
         });
     } catch (err) {
         console.error('Error fetching expectations:', err);
@@ -85,17 +53,16 @@ exports.createExpectation = async (req, res) => {
             });
         }
 
-        const newEntry = await Expectation.create({ title, description, image });
-
         // Return the full URL in the response
         const imageUrl = getImageUrl(req, image, 'expectations');
+        
+        const newEntry = await Expectation.create({ title, description, image:imageUrl });
+
         const responseData = {
             ...newEntry._doc,
             image: imageUrl
         };
-
         console.log('Created expectation with URL:', imageUrl);
-
         res.status(201).json({
             success: true,
             data: responseData,
