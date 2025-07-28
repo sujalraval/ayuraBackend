@@ -12,7 +12,10 @@ const LabTestSchema = new mongoose.Schema({
     gender: { type: String },
     price: { type: Number, required: true },
     duration: { type: String },
-    status: { type: String, default: 'active' }
+    status: { type: String, default: 'active' },
+    // New fields added
+    collectionType: { type: String },
+    whyItIsImportant: { type: String }
 });
 
 module.exports = mongoose.model('LabTest', LabTestSchema);
