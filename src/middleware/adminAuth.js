@@ -67,7 +67,26 @@ const authorize = (...roles) => {
     };
 };
 
+const isSuperAdmin = (req, res, next) => {
+    if (!req.admin) {
+        return res.status(401).json({
+            success: false,
+            message: 'Not authorized'
+        });
+    }
+
+    if (req.admin.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Requires superadmin privileges'
+        });
+    }
+
+    next();
+};
+
 module.exports = {
     adminAuth,
-    authorize
+    authorize,
+    isSuperAdmin
 };

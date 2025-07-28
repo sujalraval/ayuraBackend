@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
+// Import controllers
 const {
     adminLogin,
     createSuperAdmin,
@@ -14,35 +15,34 @@ const {
     verifyAdmin
 } = require('../controllers/adminController');
 
-const { adminAuth, authorize, isSuperAdmin } = require('../middleware/adminAuth');
+// Import middleware
+const authMiddleware = require('../middleware/adminAuth');
 
-// Debug route to check if admin routes are working
+// Debug middleware imports
+console.log('Middleware imports:', authMiddleware);
+
+// Debug route
 router.get('/test', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Admin routes are working',
-        timestamp: new Date().toISOString()
-    });
+    res.json({ message: 'Admin routes working' });
 });
 
-// Public routes (no authentication required)
+// Public routes
 router.post('/login', adminLogin);
 router.post('/refresh-token', refreshToken);
 router.post('/logout', adminLogout);
 
-// Super admin creation route (should be disabled in production)
+// Super admin creation
 router.post('/create-super-admin', createSuperAdmin);
 
-// Protected routes (require admin authentication)
-router.get('/verify', adminAuth, verifyAdmin);
-router.get('/profile', adminAuth, getAdminProfile);
-router.put('/profile', adminAuth, updateAdmin);
+// Protected routes
+router.get('/verify', authMiddleware.adminAuth, verifyAdmin);
+router.get('/profile', authMiddleware.adminAuth, getAdminProfile);
+router.put('/profile', authMiddleware.adminAuth, updateAdmin);
 
 // Super admin only routes
-router.get('/all', adminAuth, isSuperAdmin, getAllAdmins);
-router.post('/create', adminAuth, isSuperAdmin, createAdmin);
-router.put('/:id', adminAuth, authorize('superadmin'), updateAdmin);
-router.delete('/:id', adminAuth, authorize('superadmin'), deleteAdmin);
+router.get('/all', authMiddleware.adminAuth, authMiddleware.isSuperAdmin, getAllAdmins);
+router.post('/create', authMiddleware.adminAuth, authMiddleware.isSuperAdmin, createAdmin);
+router.put('/:id', authMiddleware.adminAuth, authMiddleware.authorize('superadmin'), updateAdmin);
+router.delete('/:id', authMiddleware.adminAuth, authMiddleware.authorize('superadmin'), deleteAdmin);
 
-// Export router
 module.exports = router;

@@ -238,29 +238,52 @@ exports.getAllOrders = async (req, res) => {
  * @route PUT /api/orders/approve/:orderId
  * @access Private/Admin
  */
-exports.approveOrder = asyncHandler(async (req, res, next) => {
+exports.approveOrder = async (req, res) => {
     try {
-        const order = await Order.findById(req.params.orderId);
+        debugAuth(req, 'APPROVE ORDER');
+
+        const { orderId } = req.params;
+        const { adminNotes, actionTimestamp } = req.body;
+
+        // Validate order ID
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid order ID format'
+            });
+        }
+
+        // Validate required fields
+        if (!adminNotes || !actionTimestamp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: adminNotes, actionTimestamp'
+            });
+        }
+
+        // Find and update the order
+        const order = await Order.findByIdAndUpdate(
+            orderId,
+            {
+                status: 'approved',
+                approvedBy: req.admin.id,
+                approvedAt: new Date(actionTimestamp),
+                technicianNotes: adminNotes,
+                updatedAt: Date.now()
+            },
+            { new: true, runValidators: true }
+        );
 
         if (!order) {
-            return next(new ErrorResponse(`Order not found with id of ${req.params.orderId}`, 404));
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
         }
 
-        // Check if order is already approved
-        if (order.status === 'approved') {
-            return next(new ErrorResponse('Order is already approved', 400));
-        }
-
-        // Update order status
-        order.status = 'approved';
-        order.approvedBy = req.admin.id;
-        order.approvedAt = Date.now();
-
-        await order.save();
-
-        // Send approval notification (optional)
+        // Send approval notification
         try {
-            await sendEmail({
+            await sendApprovalEmail({
                 email: order.patientInfo.email,
                 subject: 'Your Lab Test Order Has Been Approved',
                 message: `Your order #${order._id} has been approved and is being processed.`
@@ -269,16 +292,22 @@ exports.approveOrder = asyncHandler(async (req, res, next) => {
             console.error('Failed to send approval email:', emailError);
         }
 
-        res.status(200).json({
+        res.json({
             success: true,
-            data: order
+            message: 'Order approved successfully',
+            order
         });
 
-    } catch (err) {
-        console.error('Error approving order:', err);
-        next(new ErrorResponse('Failed to approve order', 500));
+    } catch (error) {
+        console.error('Error approving order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to approve order',
+            error: error.message
+        });
     }
-});
+};
+
 
 /**
  * @desc Deny an order
@@ -288,39 +317,45 @@ exports.approveOrder = asyncHandler(async (req, res, next) => {
 exports.denyOrder = async (req, res) => {
     try {
         authDebug(req, 'DENY ORDER');
-        console.log('=== DENY ORDER REQUEST ===');
-        console.log('Order ID:', req.params.orderId);
-        console.log('Request body:', req.body);
 
-        if (!mongoose.Types.ObjectId.isValid(req.params.orderId)) {
+        const { orderId } = req.params;
+        const { adminNotes, actionTimestamp } = req.body;
+
+        // Validate order ID
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid order ID format'
             });
         }
 
+        // Validate required fields
+        if (!adminNotes || !actionTimestamp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: adminNotes, actionTimestamp'
+            });
+        }
+
+        // Find and update the order
         const order = await Order.findByIdAndUpdate(
-            req.params.orderId,
+            orderId,
             {
                 status: 'denied',
-                technicianNotes: req.body.notes || 'Order was denied',
+                deniedBy: req.admin.id,
+                deniedAt: new Date(actionTimestamp),
+                technicianNotes: adminNotes,
                 updatedAt: Date.now()
             },
             { new: true, runValidators: true }
         );
 
         if (!order) {
-            console.log('❌ Order not found:', req.params.orderId);
             return res.status(404).json({
                 success: false,
                 message: 'Order not found'
             });
         }
-
-        console.log('✅ Order denied:', {
-            id: order._id,
-            status: order.status
-        });
 
         res.json({
             success: true,
@@ -329,14 +364,17 @@ exports.denyOrder = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Deny error:', error);
+        console.error('Error denying order:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to deny order',
-            error: error.message
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
+
+
 
 /**
  * @desc Get all working orders (not pending)
