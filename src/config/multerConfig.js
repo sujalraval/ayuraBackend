@@ -7,8 +7,8 @@ const storage = multer.diskStorage({
         // Get the appropriate subfolder based on route
         const subfolder = getUploadDestination(req);
 
-        // Get the full folder path
-        const folder = path.join(__dirname, '..', 'src', 'uploads', subfolder);
+        // Get the full folder path - remove the extra 'src'
+        const folder = path.join(__dirname, '..', 'uploads', subfolder);
 
         // Create directory if it doesn't exist
         if (ensureDirectoryExists(folder)) {

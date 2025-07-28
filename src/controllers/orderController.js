@@ -233,6 +233,8 @@ exports.getAllOrders = async (req, res) => {
     }
 };
 
+
+
 /**
  * @desc Approve an order
  * @route PUT /api/orders/approve/:orderId
@@ -240,12 +242,11 @@ exports.getAllOrders = async (req, res) => {
  */
 exports.approveOrder = async (req, res) => {
     try {
-        debugAuth(req, 'APPROVE ORDER');
+        authDebug(req, 'APPROVE ORDER');
 
         const { orderId } = req.params;
         const { adminNotes, actionTimestamp } = req.body;
 
-        // Validate order ID
         if (!mongoose.Types.ObjectId.isValid(orderId)) {
             return res.status(400).json({
                 success: false,
@@ -253,7 +254,6 @@ exports.approveOrder = async (req, res) => {
             });
         }
 
-        // Validate required fields
         if (!adminNotes || !actionTimestamp) {
             return res.status(400).json({
                 success: false,
@@ -261,7 +261,13 @@ exports.approveOrder = async (req, res) => {
             });
         }
 
-        // Find and update the order
+        if (!req.admin || !req.admin.id) {
+            return res.status(500).json({
+                success: false,
+                message: 'Admin information missing from request'
+            });
+        }
+
         const order = await Order.findByIdAndUpdate(
             orderId,
             {
@@ -281,7 +287,6 @@ exports.approveOrder = async (req, res) => {
             });
         }
 
-        // Send approval notification
         try {
             await sendApprovalEmail({
                 email: order.patientInfo.email,
@@ -289,7 +294,7 @@ exports.approveOrder = async (req, res) => {
                 message: `Your order #${order._id} has been approved and is being processed.`
             });
         } catch (emailError) {
-            console.error('Failed to send approval email:', emailError);
+            console.error('Email error (non-critical):', emailError);
         }
 
         res.json({
@@ -321,7 +326,6 @@ exports.denyOrder = async (req, res) => {
         const { orderId } = req.params;
         const { adminNotes, actionTimestamp } = req.body;
 
-        // Validate order ID
         if (!mongoose.Types.ObjectId.isValid(orderId)) {
             return res.status(400).json({
                 success: false,
@@ -329,7 +333,6 @@ exports.denyOrder = async (req, res) => {
             });
         }
 
-        // Validate required fields
         if (!adminNotes || !actionTimestamp) {
             return res.status(400).json({
                 success: false,
@@ -337,7 +340,13 @@ exports.denyOrder = async (req, res) => {
             });
         }
 
-        // Find and update the order
+        if (!req.admin || !req.admin.id) {
+            return res.status(500).json({
+                success: false,
+                message: 'Admin information missing from request'
+            });
+        }
+
         const order = await Order.findByIdAndUpdate(
             orderId,
             {
@@ -368,11 +377,11 @@ exports.denyOrder = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to deny order',
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
 };
+
 
 
 
