@@ -17,8 +17,17 @@ const {
     getFamilyMembers
 } = require('../controllers/orderController');
 
-const { protect } = require('../middleware/auth');
-const { adminAuth } = require('../middleware/adminAuth');
+const { protect } = require('../middleware/auth'); // User auth
+const { adminAuth, isAdmin } = require('../middleware/adminAuth'); // Admin auth
+
+// Debug route
+router.get('/test', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Order routes are working',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Admin Routes - Use adminAuth middleware
 router.get('/pending', adminAuth, getPendingOrders);
@@ -28,7 +37,7 @@ router.put('/approve/:orderId', adminAuth, approveOrder);
 router.put('/deny/:orderId', adminAuth, denyOrder);
 router.put('/:id/status', adminAuth, updateOrderStatus);
 
-// File upload route
+// File upload route for reports
 router.post('/upload-report/:id',
     adminAuth,
     (req, res, next) => {
@@ -54,7 +63,6 @@ router.post('/upload-report/:id',
                     error: err.message || 'File upload failed'
                 });
             }
-
             next();
         });
     },
@@ -67,13 +75,14 @@ router.get('/user', protect, getUserOrders);
 router.get('/family-members', protect, getFamilyMembers);
 router.put('/:id/cancel', protect, cancelOrder);
 
-// Mixed Routes - Check admin first, then user
+// Mixed Routes - Can be accessed by both admin and users
 router.get('/:id', (req, res, next) => {
-    // Check if request has admin authorization
+    // Check if request has admin authorization first
     const authHeader = req.headers.authorization;
     const hasAdminAuth = authHeader && authHeader.startsWith('Bearer ');
+    const hasAdminCookie = req.cookies && req.cookies.adminToken;
 
-    if (hasAdminAuth) {
+    if (hasAdminAuth || hasAdminCookie) {
         // Try admin auth first
         adminAuth(req, res, (err) => {
             if (err || !req.admin) {
@@ -85,7 +94,7 @@ router.get('/:id', (req, res, next) => {
             }
         });
     } else {
-        // No admin auth header, use user auth
+        // No admin auth indicators, use user auth
         protect(req, res, next);
     }
 }, getOrderById);

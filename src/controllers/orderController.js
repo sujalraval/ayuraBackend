@@ -5,7 +5,7 @@ const { validateOrder } = require('../utils/validation');
 const { getImageUrl, getFilePath, verifyFileExists, deleteFile } = require('../utils/fileUtils');
 const mongoose = require('mongoose');
 
-// Add auth debugging function
+// Fixed auth debugging function
 const authDebug = (req, action) => {
     console.log(`=== ${action} AUTH DEBUG ===`);
     console.log('Headers:', {
@@ -44,14 +44,18 @@ exports.placeOrder = async (req, res) => {
 
         // Validate order data if validation function exists
         if (validateOrder) {
-            const { error } = validateOrder(req.body);
-            if (error) {
-                console.error('Validation error:', error.details);
-                return res.status(400).json({
-                    success: false,
-                    message: 'Validation failed',
-                    error: error.details[0].message
-                });
+            try {
+                const { error } = validateOrder(req.body);
+                if (error) {
+                    console.error('Validation error:', error.details);
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Validation failed',
+                        error: error.details[0].message
+                    });
+                }
+            } catch (validationError) {
+                console.log('Validation function error (non-critical):', validationError.message);
             }
         }
 
@@ -438,7 +442,7 @@ exports.uploadReport = async (req, res) => {
             {
                 status: 'report submitted',
                 reportUrl: reportUrl,
-                reportFilename: filename, // Store filename for future operations
+                reportFilename: filename,
                 updatedAt: Date.now()
             },
             { new: true, runValidators: true }
@@ -473,16 +477,6 @@ exports.uploadReport = async (req, res) => {
             }
         } catch (emailError) {
             console.error('⚠️ Email sending failed (non-critical):', emailError.message);
-            // Continue even if email fails
-        }
-
-        // Emit real-time update if socket.io is available
-        if (req.app.get('io')) {
-            req.app.get('io').emit('orderUpdate', {
-                orderId: updatedOrder._id,
-                status: updatedOrder.status,
-                reportUrl: updatedOrder.reportUrl
-            });
         }
 
         res.status(200).json({
@@ -591,7 +585,8 @@ exports.getOrderById = async (req, res) => {
         // Check if user is authorized to view this order
         const userEmail = req.user?.email;
         const userId = req.user?.id || req.user?._id;
-        const isAdmin = req.user?.isAdmin || req.user?.role === 'admin' || req.user?.role === 'labtech' || req.admin;
+        const isAdmin = req.user?.isAdmin || req.user?.role === 'admin' ||
+            req.user?.role === 'labtech' || req.admin;
 
         const canAccess = isAdmin ||
             order.patientInfo.email === userEmail ||
@@ -677,15 +672,6 @@ exports.updateOrderStatus = async (req, res) => {
             status: order.status,
             notes: order.technicianNotes
         });
-
-        // Emit event for real-time update
-        if (req.app.get('io')) {
-            req.app.get('io').emit('orderUpdate', {
-                orderId: order._id,
-                status: order.status,
-                reportUrl: order.reportUrl
-            });
-        }
 
         res.json({
             success: true,
@@ -886,19 +872,4 @@ exports.getFamilyMembers = async (req, res) => {
             error: error.message
         });
     }
-};
-
-module.exports = {
-    placeOrder: exports.placeOrder,
-    getPendingOrders: exports.getPendingOrders,
-    getAllOrders: exports.getAllOrders,
-    approveOrder: exports.approveOrder,
-    denyOrder: exports.denyOrder,
-    getWorkingOrders: exports.getWorkingOrders,
-    uploadReport: exports.uploadReport,
-    getUserOrders: exports.getUserOrders,
-    getOrderById: exports.getOrderById,
-    updateOrderStatus: exports.updateOrderStatus,
-    cancelOrder: exports.cancelOrder,
-    getFamilyMembers: exports.getFamilyMembers
 };

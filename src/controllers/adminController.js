@@ -105,23 +105,35 @@ exports.adminLogin = async (req, res) => {
     }
 };
 
-// Add this to your adminController.js
-// Verify admin token and return admin details
-/** * @desc    Verify admin token
+/**
+ * @desc    Verify admin token
  * @route   GET /api/v1/admin/verify
  * @access  Private
  */
 exports.verifyAdmin = async (req, res) => {
     try {
+        console.log('=== ADMIN VERIFY REQUEST ===');
+        console.log('Headers:', {
+            authorization: req.headers.authorization ? 'Present' : 'Missing',
+            origin: req.headers.origin
+        });
+
         // The adminAuth middleware already verified the token and attached the admin
         const admin = req.admin || req.user;
 
         if (!admin) {
+            console.log('No admin found in request');
             return res.status(401).json({
                 success: false,
                 message: 'Admin not found'
             });
         }
+
+        console.log('Admin verification successful:', {
+            id: admin._id || admin.id,
+            email: admin.email,
+            role: admin.role
+        });
 
         res.json({
             success: true,
@@ -131,7 +143,8 @@ exports.verifyAdmin = async (req, res) => {
                 email: admin.email,
                 name: admin.name,
                 role: admin.role,
-                isActive: admin.isActive
+                isActive: admin.isActive,
+                permissions: admin.permissions || []
             }
         });
     } catch (error) {
@@ -143,7 +156,6 @@ exports.verifyAdmin = async (req, res) => {
         });
     }
 };
-
 
 /**
  * @desc    Create super admin (for initial setup only)
@@ -231,7 +243,16 @@ exports.createSuperAdmin = async (req, res) => {
  */
 exports.getAdminProfile = async (req, res) => {
     try {
-        const admin = await AdminUser.findById(req.user.id).select('-password -__v');
+        const adminId = req.user?.id || req.admin?.id || req.user?._id || req.admin?._id;
+
+        if (!adminId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Admin not authenticated'
+            });
+        }
+
+        const admin = await AdminUser.findById(adminId).select('-password -__v');
 
         if (!admin) {
             return res.status(404).json({
@@ -272,8 +293,10 @@ exports.getAdminProfile = async (req, res) => {
  */
 exports.getAllAdmins = async (req, res) => {
     try {
+        const userRole = req.user?.role || req.admin?.role;
+
         // Check if user is super admin
-        if (req.user.role !== 'superadmin') {
+        if (userRole !== 'superadmin') {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Super admin role required.'
@@ -305,8 +328,10 @@ exports.getAllAdmins = async (req, res) => {
  */
 exports.createAdmin = async (req, res) => {
     try {
+        const userRole = req.user?.role || req.admin?.role;
+
         // Check if user is super admin
-        if (req.user.role !== 'superadmin') {
+        if (userRole !== 'superadmin') {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Super admin role required.'
@@ -380,8 +405,12 @@ exports.createAdmin = async (req, res) => {
  */
 exports.updateAdmin = async (req, res) => {
     try {
+        const currentUser = req.user || req.admin;
+        const userRole = currentUser?.role;
+        const userId = currentUser?.id || currentUser?._id;
+
         // Check if user is super admin or updating own profile
-        if (req.user.role !== 'superadmin' && req.user.id !== req.params.id) {
+        if (userRole !== 'superadmin' && userId !== req.params.id) {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Insufficient privileges.'
@@ -401,9 +430,9 @@ exports.updateAdmin = async (req, res) => {
 
         // Update fields
         if (name !== undefined) admin.name = name;
-        if (role !== undefined && req.user.role === 'superadmin') admin.role = role;
-        if (permissions !== undefined && req.user.role === 'superadmin') admin.permissions = permissions;
-        if (isActive !== undefined && req.user.role === 'superadmin') admin.isActive = isActive;
+        if (role !== undefined && userRole === 'superadmin') admin.role = role;
+        if (permissions !== undefined && userRole === 'superadmin') admin.permissions = permissions;
+        if (isActive !== undefined && userRole === 'superadmin') admin.isActive = isActive;
 
         // Handle password change
         if (password) {
@@ -443,8 +472,10 @@ exports.updateAdmin = async (req, res) => {
  */
 exports.deleteAdmin = async (req, res) => {
     try {
+        const userRole = req.user?.role || req.admin?.role;
+
         // Check if user is super admin
-        if (req.user.role !== 'superadmin') {
+        if (userRole !== 'superadmin') {
             return res.status(403).json({
                 success: false,
                 message: 'Access denied. Super admin role required.'
@@ -557,6 +588,7 @@ exports.refreshToken = async (req, res) => {
         });
     }
 };
+
 /**
  * @desc Admin logout
  * @route POST /api/v1/admin/logout
