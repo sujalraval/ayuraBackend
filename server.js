@@ -102,81 +102,40 @@ app.use(helmet({
         },
     } : false
 }));
-// Static file serving
+
+// FIXED: Corrected static file serving path
 app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
-    setHeaders: (res, path) => {
+    setHeaders: (res, filePath) => {
+        console.log('Serving static file:', filePath);
+
         res.set('Cross-Origin-Resource-Policy', 'cross-origin');
         res.set('Cross-Origin-Opener-Policy', 'same-origin');
         res.set('Cache-Control', 'public, max-age=31536000');
+
+        // Set appropriate content type
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.jpg' || ext === '.jpeg') {
+            res.set('Content-Type', 'image/jpeg');
+        } else if (ext === '.png') {
+            res.set('Content-Type', 'image/png');
+        } else if (ext === '.pdf') {
+            res.set('Content-Type', 'application/pdf');
+        }
     }
 }));
-// CRITICAL: Enhanced static file serving with proper CORS headers
-// app.use('/uploads', (req, res, next) => {
-//     console.log('=== STATIC FILE REQUEST ===');
-//     console.log('URL:', req.url);
-//     console.log('Origin:', req.get('Origin'));
-//     console.log('Method:', req.method);
-//     console.log('Headers:', req.headers);
 
-//     // Set CORS headers for static files
-//     const origin = req.get('Origin');
+// Optional: Debug middleware for static files (remove in production)
+app.use('/uploads', (req, res, next) => {
+    console.log('=== STATIC FILE REQUEST ===');
+    console.log('URL:', req.url);
+    console.log('Method:', req.method);
+    console.log('Looking for file at:', path.join(__dirname, 'src', 'uploads', req.url));
 
-//     if (origin) {
-//         // Check if origin is allowed
-//         const isAllowed = allowedOrigins.includes(origin);
-//         if (isAllowed) {
-//             res.set('Access-Control-Allow-Origin', origin);
-//             console.log('CORS: Origin allowed for static file:', origin);
-//         } else {
-//             console.log('CORS: Origin NOT allowed for static file:', origin);
-//             // Still allow for direct access but log it
-//             res.set('Access-Control-Allow-Origin', '*');
-//         }
-//     } else {
-//         // For direct access (no origin), allow all
-//         res.set('Access-Control-Allow-Origin', '*');
-//         console.log('CORS: No origin, allowing all for static file');
-//     }
+    const filePath = path.join(__dirname, 'src', 'uploads', req.url);
+    console.log('File exists:', fs.existsSync(filePath));
 
-//     res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-//     res.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-//     res.set('Access-Control-Allow-Credentials', 'true');
-//     res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-//     res.set('Vary', 'Origin');
-
-//     // Handle OPTIONS request for static files
-//     if (req.method === 'OPTIONS') {
-//         console.log('OPTIONS request for static file');
-//         return res.status(200).end();
-//     }
-
-//     next();
-// }, express.static(path.join(__dirname, 'src', 'uploads'), {
-//     setHeaders: (res, filePath) => {
-//         console.log('Setting headers for static file:', filePath);
-
-//         // Set appropriate content type
-//         const ext = path.extname(filePath).toLowerCase();
-//         if (ext === '.jpg' || ext === '.jpeg') {
-//             res.set('Content-Type', 'image/jpeg');
-//         } else if (ext === '.png') {
-//             res.set('Content-Type', 'image/png');
-//         } else if (ext === '.pdf') {
-//             res.set('Content-Type', 'application/pdf');
-//         }
-
-//         // Cache control
-//         if (process.env.NODE_ENV === 'production') {
-//             res.set('Cache-Control', 'public, max-age=31536000'); // 1 year
-//         } else {
-//             res.set('Cache-Control', 'no-cache');
-//         }
-
-//         console.log('Final headers for static file:', res.getHeaders());
-//     }
-// }));
-
-
+    next();
+});
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -239,7 +198,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-
     console.log(`
 🚀 Server is running....
 📡 Environment: ${process.env.NODE_ENV}
@@ -248,6 +206,7 @@ const server = app.listen(PORT, () => {
 🔗 API Base URL: https://ayuras.life/api/v1
 🌐 CORS enabled for: ${allowedOrigins.join(', ')}
 🔧 Trust proxy: ${app.get('trust proxy')}
+📁 Static files: ${path.join(__dirname, 'src', 'uploads')}
     `);
 });
 

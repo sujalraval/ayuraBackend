@@ -5,6 +5,11 @@ const fs = require('fs');
 const getImageUrl = (req, filename, subfolder = '') => {
     if (!filename) return null;
 
+    // If it's already a full URL, return as is
+    if (filename.startsWith('http')) {
+        return filename;
+    }
+
     // Always use HTTPS for production
     const protocol = 'https';
     const host = 'ayuras.life';
@@ -27,6 +32,14 @@ const getImageUrl = (req, filename, subfolder = '') => {
 
 // Helper function to get the physical file path
 const getFilePath = (filename, subfolder = '') => {
+    if (!filename) return null;
+
+    // If it's a full URL, extract filename
+    if (filename.startsWith('http')) {
+        const urlParts = filename.split('/');
+        filename = urlParts[urlParts.length - 1];
+    }
+
     // Get the base uploads directory path
     const basePath = path.join(__dirname, '..', 'src', 'uploads');
 

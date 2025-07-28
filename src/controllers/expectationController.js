@@ -6,9 +6,21 @@ exports.getAllExpectations = async (req, res) => {
     try {
         const data = await Expectation.find().sort({ createdAt: -1 });
 
+        // Convert filename to full URL for each expectation
+        const dataWithUrls = data.map(expectation => {
+            const expectationObj = expectation.toObject();
+
+            // Convert filename to full URL if image exists
+            if (expectationObj.image) {
+                expectationObj.image = getImageUrl(req, expectationObj.image, 'expectations');
+            }
+
+            return expectationObj;
+        });
+
         res.json({
             success: true,
-            data: data
+            data: dataWithUrls
         });
     } catch (err) {
         console.error('Error fetching expectations:', err);
@@ -39,7 +51,7 @@ exports.createExpectation = async (req, res) => {
             });
         }
 
-        const image = req.file.filename;
+        const image = req.file.filename; // Store only filename in database
 
         console.log('Creating expectation with image:', image);
         console.log('File saved at:', req.file.path);
@@ -53,15 +65,16 @@ exports.createExpectation = async (req, res) => {
             });
         }
 
-        // Return the full URL in the response
-        const imageUrl = getImageUrl(req, image, 'expectations');
-        
-        const newEntry = await Expectation.create({ title, description, image:imageUrl });
+        // Store only filename in database
+        const newEntry = await Expectation.create({ title, description, image });
 
+        // Return full URL in response
+        const imageUrl = getImageUrl(req, image, 'expectations');
         const responseData = {
             ...newEntry._doc,
             image: imageUrl
         };
+
         console.log('Created expectation with URL:', imageUrl);
         res.status(201).json({
             success: true,
@@ -121,7 +134,7 @@ exports.updateExpectation = async (req, res) => {
                 deleteFile(oldPath);
             }
 
-            updateData.image = req.file.filename;
+            updateData.image = req.file.filename; // Store only filename
         }
 
         const updated = await Expectation.findByIdAndUpdate(id, updateData, {
