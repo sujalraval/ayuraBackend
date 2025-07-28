@@ -103,7 +103,7 @@ app.use(helmet({
     } : false
 }));
 // Static file serving
-app.use('/uploads', express.static(path.join(__dirname, '..', 'src', 'uploads'), {
+app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads'), {
     setHeaders: (res, path) => {
         res.set('Cross-Origin-Resource-Policy', 'cross-origin');
         res.set('Cross-Origin-Opener-Policy', 'same-origin');
