@@ -70,12 +70,35 @@ exports.getUncategorizedLabTests = async (req, res) => {
     }
 };
 
-// Add a new lab test
 exports.createLabTest = async (req, res) => {
     try {
-        const newTest = new LabTest(req.body);
-        await newTest.save();
-        res.status(201).json(newTest);
+        console.log('Received data:', req.body); // Debug log
+
+        const testData = {
+            name: req.body.name,
+            alias: req.body.alias,
+            category: req.body.category,
+            description: req.body.description,
+            parameters: req.body.parameters,
+            sample: req.body.sample,
+            fasting: req.body.fasting,
+            ageGroup: req.body.ageGroup,
+            gender: req.body.gender,
+            price: req.body.price,
+            duration: req.body.duration,
+            status: req.body.status || 'active',
+            collectionType: req.body.collectionType,
+            whyItIsImportant: req.body.whyItIsImportant
+        };
+
+        console.log('Processed data:', testData); // Debug log
+
+        const newTest = new LabTest(testData);
+        const savedTest = await newTest.save();
+
+        console.log('Saved test:', savedTest); // Debug log
+
+        res.status(201).json(savedTest);
     } catch (err) {
         console.error('Error creating lab test:', err);
         res.status(400).json({
@@ -85,19 +108,40 @@ exports.createLabTest = async (req, res) => {
     }
 };
 
+
 // Update a lab test
 exports.updateLabTest = async (req, res) => {
     try {
+        console.log('Updating with data:', req.body); // Debug log
+
+        const updateData = {
+            name: req.body.name,
+            alias: req.body.alias,
+            category: req.body.category,
+            description: req.body.description,
+            parameters: req.body.parameters,
+            sample: req.body.sample,
+            fasting: req.body.fasting,
+            ageGroup: req.body.ageGroup,
+            gender: req.body.gender,
+            price: req.body.price,
+            duration: req.body.duration,
+            status: req.body.status,
+            collectionType: req.body.collectionType,
+            whyItIsImportant: req.body.whyItIsImportant
+        };
+
         const updated = await LabTest.findByIdAndUpdate(
             req.params.id,
-            req.body,
-            { new: true }
+            updateData,
+            { new: true, runValidators: true }
         );
 
         if (!updated) {
             return res.status(404).json({ error: 'Lab test not found' });
         }
 
+        console.log('Updated test:', updated); // Debug log
         res.json(updated);
     } catch (err) {
         console.error('Error updating lab test:', err);
@@ -107,6 +151,7 @@ exports.updateLabTest = async (req, res) => {
         });
     }
 };
+
 
 // Delete a lab test
 exports.deleteLabTest = async (req, res) => {
