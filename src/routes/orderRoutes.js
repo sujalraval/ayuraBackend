@@ -14,16 +14,16 @@ const {
     updateOrderStatus,
     cancelOrder,
     getFamilyMembers,
-    getAdminReports // Add this new controller function
+    getAdminReports // Make sure this is imported
 } = require('../controllers/orderController');
 const { adminAuth, authorize } = require('../middleware/adminAuth');
 const { protect } = require('../middleware/auth');
 
-// Admin routes
+// Admin routes (put specific routes BEFORE parameterized ones)
 router.get('/pending', adminAuth, authorize('admin', 'superadmin'), getPendingOrders);
 router.get('/all', adminAuth, authorize('admin', 'superadmin'), getAllOrders);
 router.get('/working', adminAuth, authorize('admin', 'superadmin', 'labtech'), getWorkingOrders);
-router.get('/reports', adminAuth, authorize('admin', 'superadmin', 'labtech'), getAdminReports); // NEW ROUTE
+router.get('/reports', adminAuth, authorize('admin', 'superadmin', 'labtech'), getAdminReports); // ← IMPORTANT: Before /:id
 router.put('/approve/:orderId', adminAuth, authorize('admin', 'superadmin'), approveOrder);
 router.put('/deny/:orderId', adminAuth, authorize('admin', 'superadmin'), denyOrder);
 router.put('/:id/status', adminAuth, updateOrderStatus);
@@ -42,7 +42,7 @@ router.get('/user', protect, getUserOrders);
 router.get('/family-members', protect, getFamilyMembers);
 router.put('/:id/cancel', protect, cancelOrder);
 
-// Shared route
+// Shared route (MUST be last among parameterized routes)
 router.get('/:id', (req, res, next) => {
     if (req.cookies?.adminToken || req.headers?.authorization?.startsWith('Bearer ')) {
         return adminAuth(req, res, next);

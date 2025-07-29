@@ -530,19 +530,23 @@ exports.uploadReport = async (req, res) => {
         });
     }
 };
+
+
 /**
  * @desc Get all reports for admin dashboard
- * @route GET /api/orders/reports
+ * @route GET /api/v1/orders/reports
  * @access Private/Admin
  */
 exports.getAdminReports = async (req, res) => {
     try {
-        authDebug(req, 'GET ADMIN REPORTS');
-
         console.log('=== GET ADMIN REPORTS REQUEST ===');
-        console.log('Admin:', req.admin?.email || 'Unknown');
+        console.log('Admin:', req.admin?.email || req.admin?.name || 'Unknown');
+        console.log('Admin Role:', req.admin?.role || 'Unknown');
 
-        // Find all orders with reports
+        // Import Order model (make sure this is at the top of your file)
+        const Order = require('../models/Order'); // Adjust path as needed
+
+        // Find all orders with reports - no ID parameter needed
         const orders = await Order.find({
             $and: [
                 {
@@ -551,9 +555,16 @@ exports.getAdminReports = async (req, res) => {
                         { status: 'completed' }
                     ]
                 },
-                { reportUrl: { $exists: true, $ne: null, $ne: '' } }
+                {
+                    reportUrl: {
+                        $exists: true,
+                        $ne: null,
+                        $ne: ''
+                    }
+                }
             ]
         })
+            .populate('patientInfo', 'name memberId userId') // Populate patient info if needed
             .sort({ updatedAt: -1 })
             .lean();
 
@@ -562,7 +573,7 @@ exports.getAdminReports = async (req, res) => {
         res.status(200).json({
             success: true,
             count: orders.length,
-            orders
+            orders: orders
         });
 
     } catch (error) {
@@ -570,10 +581,11 @@ exports.getAdminReports = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching reports',
-            error: error.message
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Server Error'
         });
     }
 };
+
 
 /**
  * @desc Get user's orders
