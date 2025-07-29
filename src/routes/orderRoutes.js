@@ -13,7 +13,8 @@ const {
     getOrderById,
     updateOrderStatus,
     cancelOrder,
-    getFamilyMembers
+    getFamilyMembers,
+    getAdminReports // Add this new controller function
 } = require('../controllers/orderController');
 const { adminAuth, authorize } = require('../middleware/adminAuth');
 const { protect } = require('../middleware/auth');
@@ -22,6 +23,7 @@ const { protect } = require('../middleware/auth');
 router.get('/pending', adminAuth, authorize('admin', 'superadmin'), getPendingOrders);
 router.get('/all', adminAuth, authorize('admin', 'superadmin'), getAllOrders);
 router.get('/working', adminAuth, authorize('admin', 'superadmin', 'labtech'), getWorkingOrders);
+router.get('/reports', adminAuth, authorize('admin', 'superadmin', 'labtech'), getAdminReports); // NEW ROUTE
 router.put('/approve/:orderId', adminAuth, authorize('admin', 'superadmin'), approveOrder);
 router.put('/deny/:orderId', adminAuth, authorize('admin', 'superadmin'), denyOrder);
 router.put('/:id/status', adminAuth, updateOrderStatus);

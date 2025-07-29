@@ -530,6 +530,50 @@ exports.uploadReport = async (req, res) => {
         });
     }
 };
+/**
+ * @desc Get all reports for admin dashboard
+ * @route GET /api/orders/reports
+ * @access Private/Admin
+ */
+exports.getAdminReports = async (req, res) => {
+    try {
+        authDebug(req, 'GET ADMIN REPORTS');
+
+        console.log('=== GET ADMIN REPORTS REQUEST ===');
+        console.log('Admin:', req.admin?.email || 'Unknown');
+
+        // Find all orders with reports
+        const orders = await Order.find({
+            $and: [
+                {
+                    $or: [
+                        { status: 'report submitted' },
+                        { status: 'completed' }
+                    ]
+                },
+                { reportUrl: { $exists: true, $ne: null, $ne: '' } }
+            ]
+        })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        console.log(`Found ${orders.length} orders with reports`);
+
+        res.status(200).json({
+            success: true,
+            count: orders.length,
+            orders
+        });
+
+    } catch (error) {
+        console.error('Error fetching admin reports:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching reports',
+            error: error.message
+        });
+    }
+};
 
 /**
  * @desc Get user's orders
