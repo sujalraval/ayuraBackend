@@ -1,6 +1,6 @@
 const fs = require('fs');
 const Expectation = require('../models/expectationModel');
-const { getImageUrl, getFilePath, verifyFileExists, deleteFile } = require('../utils/fileUtils');
+const { getImageUrl, getFilePath, verifyFileExists, deleteFile, findExistingFile } = require('../utils/fileUtils');
 
 exports.getAllExpectations = async (req, res) => {
     try {
@@ -12,7 +12,14 @@ exports.getAllExpectations = async (req, res) => {
 
             // Convert filename to full URL if image exists
             if (expectationObj.image) {
-                expectationObj.image = getImageUrl(req, expectationObj.image, 'expectations');
+                // First check if the file actually exists
+                const existingFile = findExistingFile(expectationObj.image, 'expectations');
+                if (existingFile) {
+                    expectationObj.image = getImageUrl(req, existingFile, 'expectations');
+                } else {
+                    console.warn(`Image file not found for expectation ${expectationObj._id}: ${expectationObj.image}`);
+                    expectationObj.image = null;
+                }
             }
 
             return expectationObj;
@@ -70,12 +77,14 @@ exports.createExpectation = async (req, res) => {
 
         // Return full URL in response
         const imageUrl = getImageUrl(req, image, 'expectations');
+
         const responseData = {
             ...newEntry._doc,
             image: imageUrl
         };
 
         console.log('Created expectation with URL:', imageUrl);
+
         res.status(201).json({
             success: true,
             data: responseData,
@@ -110,7 +119,6 @@ exports.updateExpectation = async (req, res) => {
         }
 
         const existing = await Expectation.findById(id);
-
         if (!existing) {
             return res.status(404).json({
                 success: false,
@@ -144,6 +152,7 @@ exports.updateExpectation = async (req, res) => {
 
         // Return the full URL in the response
         const imageUrl = updated.image ? getImageUrl(req, updated.image, 'expectations') : null;
+
         const responseData = {
             ...updated._doc,
             image: imageUrl
@@ -185,7 +194,6 @@ exports.deleteExpectation = async (req, res) => {
         }
 
         const existing = await Expectation.findById(id);
-
         if (!existing) {
             return res.status(404).json({
                 success: false,
@@ -200,6 +208,7 @@ exports.deleteExpectation = async (req, res) => {
         }
 
         await existing.deleteOne();
+
         console.log('Deleted expectation:', id);
 
         res.json({
@@ -237,13 +246,25 @@ exports.verifyImage = async (req, res) => {
                 modifiedAt: stats.mtime
             });
         } else {
-            res.status(404).json({
-                success: false,
-                filename,
-                path: imagePath,
-                accessible: false,
-                error: 'Image file not found'
-            });
+            // Try to find existing files
+            const existingFile = findExistingFile(filename, 'expectations');
+            if (existingFile) {
+                res.json({
+                    success: true,
+                    requestedFilename: filename,
+                    actualFilename: existingFile,
+                    url: getImageUrl(req, existingFile, 'expectations'),
+                    message: 'Found alternative file'
+                });
+            } else {
+                res.status(404).json({
+                    success: false,
+                    filename,
+                    path: imagePath,
+                    accessible: false,
+                    error: 'Image file not found'
+                });
+            }
         }
     } catch (err) {
         console.error('Error verifying image:', err);

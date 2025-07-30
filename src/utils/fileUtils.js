@@ -10,9 +10,14 @@ const getImageUrl = (req, filename, subfolder = '') => {
         return filename;
     }
 
-    // Always use HTTPS for production
+    // Determine the correct host based on the request
     const protocol = 'https';
-    const host = 'ayuras.life';
+    let host = req.get('host') || 'ayuras.life';
+
+    // If request comes from admin, use main domain for images
+    if (host.includes('admin.ayuras.life')) {
+        host = 'ayuras.life';
+    }
 
     // Construct URL path with subfolder
     let urlPath;
@@ -25,7 +30,7 @@ const getImageUrl = (req, filename, subfolder = '') => {
     const fullUrl = `${protocol}://${host}/${urlPath}`;
 
     console.log('Generated file URL:', fullUrl);
-    console.log('Subfolder:', subfolder, 'Filename:', filename);
+    console.log('Host:', host, 'Subfolder:', subfolder, 'Filename:', filename);
 
     return fullUrl;
 };
@@ -40,8 +45,8 @@ const getFilePath = (filename, subfolder = '') => {
         filename = urlParts[urlParts.length - 1];
     }
 
-    // Get the base uploads directory path
-    const basePath = path.join(__dirname, '..', 'src', 'uploads');
+    // Use the correct base path - /var/www/uploads instead of src/uploads
+    const basePath = '/var/www/uploads';
 
     if (subfolder) {
         return path.join(basePath, subfolder, filename);
@@ -110,7 +115,31 @@ const getUploadDestination = (req) => {
 
 // Helper to get absolute uploads path
 const getUploadsPath = () => {
-    return path.join(__dirname, '..', 'src', 'uploads');
+    return '/var/www/uploads';
+};
+
+// Helper function to find existing files in directory
+const findExistingFile = (filename, subfolder = '') => {
+    try {
+        const dirPath = path.join('/var/www/uploads', subfolder);
+        if (!fs.existsSync(dirPath)) {
+            return null;
+        }
+
+        const files = fs.readdirSync(dirPath);
+        console.log(`Available files in ${dirPath}:`, files);
+
+        // First try exact match
+        if (files.includes(filename)) {
+            return filename;
+        }
+
+        // If no exact match, return null - don't guess
+        return null;
+    } catch (err) {
+        console.error('Error finding existing file:', err);
+        return null;
+    }
 };
 
 module.exports = {
@@ -120,5 +149,6 @@ module.exports = {
     deleteFile,
     ensureDirectoryExists,
     getUploadDestination,
-    getUploadsPath
+    getUploadsPath,
+    findExistingFile
 };
