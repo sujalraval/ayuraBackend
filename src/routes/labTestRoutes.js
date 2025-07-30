@@ -6,7 +6,8 @@ const {
     getUncategorizedLabTests,
     createLabTest,
     updateLabTest,
-    deleteLabTest
+    deleteLabTest,
+    searchLabTests
 } = require('../controllers/labTestController');
 
 // GET all lab tests
@@ -17,6 +18,9 @@ router.get('/category/slug/:slug', getLabTestsByCategorySlug);
 
 // GET uncategorized lab tests
 router.get('/uncategorized', getUncategorizedLabTests);
+
+// GET search lab tests - Add this route
+router.get('/search', searchLabTests);
 
 // POST create new lab test
 router.post('/', createLabTest);

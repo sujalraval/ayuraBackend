@@ -171,3 +171,31 @@ exports.deleteLabTest = async (req, res) => {
         });
     }
 };
+
+// search lab tests by name, alias, category, description, or parameters
+exports.searchLabTests = async (req, res) => {
+    try {
+        const { query } = req.query;
+
+        if (!query || query.trim().length === 0) {
+            return res.json([]);
+        }
+
+        const searchRegex = new RegExp(query.trim(), 'i');
+
+        const tests = await LabTest.find({
+            $or: [
+                { name: { $regex: searchRegex } },
+                { alias: { $regex: searchRegex } },
+                { category: { $regex: searchRegex } },
+                { description: { $regex: searchRegex } },
+                { parameters: { $regex: searchRegex } }
+            ]
+        }).limit(10); // Limit to 10 results for performance
+
+        res.json(tests);
+    } catch (err) {
+        console.error('Error searching lab tests:', err);
+        res.status(500).json({ error: 'Failed to search lab tests' });
+    }
+};
