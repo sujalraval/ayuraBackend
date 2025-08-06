@@ -25,4 +25,4 @@ jobs:
             git clean -fd
             # continue deployment...
             npm install --yes
-            pm2 restart all
+            npx pm2 restart all
