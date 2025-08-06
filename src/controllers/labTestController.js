@@ -213,25 +213,64 @@ exports.deleteLabTest = async (req, res) => {
 };
 
 // Search lab tests by name, alias, category, description, or parameters
+// exports.searchLabTests = async (req, res) => {
+//     try {
+//         const { query, q } = req.query; // Accept both parameters
+//         const searchTerm = query || q;
+
+//         if (!searchTerm || searchTerm.trim().length === 0) {
+//             return res.json([]);
+//         }
+
+//         const searchRegex = new RegExp(searchTerm.trim(), 'i');
+
+//         const tests = await LabTest.find({
+//             $or: [
+//                 { name: { $regex: searchRegex } },
+//                 { alias: { $regex: searchRegex } },
+//                 { category: { $regex: searchRegex } },
+//                 { description: { $regex: searchRegex } },
+//                 { parameters: { $regex: searchRegex } }
+//             ]
+//         }).limit(10);
+
+//         res.json(tests);
+//     } catch (err) {
+//         console.error('Error searching lab tests:', err);
+//         res.status(500).json({ error: 'Failed to search lab tests' });
+//     }
+// };
+
 exports.searchLabTests = async (req, res) => {
     try {
-        const { query } = req.query;
+        const { name, alias, category, description, parameters } = req.query;
 
-        if (!query || query.trim().length === 0) {
-            return res.json([]);
+        // Build dynamic query object
+        const query = {};
+
+        // Add fields to query only if they exist in the request
+        if (name) {
+            query.name = { $regex: name, $options: 'i' }; // Case-insensitive partial match
         }
 
-        const searchRegex = new RegExp(query.trim(), 'i');
+        if (alias) {
+            query.alias = { $regex: alias, $options: 'i' };
+        }
 
-        const tests = await LabTest.find({
-            $or: [
-                { name: { $regex: searchRegex } },
-                { alias: { $regex: searchRegex } },
-                { category: { $regex: searchRegex } },
-                { description: { $regex: searchRegex } },
-                { parameters: { $regex: searchRegex } }
-            ]
-        }).limit(10);
+        if (category) {
+            query.category = { $regex: category, $options: 'i' };
+        }
+
+        if (description) {
+            query.description = { $regex: description, $options: 'i' };
+        }
+
+        if (parameters) {
+            query.parameters = { $regex: parameters, $options: 'i' };
+        }
+
+        // If no search parameters provided, return all tests (or you can return empty array)
+        const tests = await LabTest.find(query);
 
         res.json(tests);
     } catch (err) {
@@ -239,3 +278,4 @@ exports.searchLabTests = async (req, res) => {
         res.status(500).json({ error: 'Failed to search lab tests' });
     }
 };
+

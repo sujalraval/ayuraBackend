@@ -14,20 +14,13 @@ const {
 // GET all lab tests
 router.get('/', getAllLabTests);
 
-// GET search lab tests - Add this route
+// SPECIFIC ROUTES MUST COME FIRST (before /:id)
 router.get('/search', searchLabTests);
-// GET single lab test by ID
-router.get('/:id', getLabTestById);
-
-
-
-// GET lab tests by category slug
 router.get('/category/slug/:slug', getLabTestsByCategorySlug);
-
-// GET uncategorized lab tests
 router.get('/uncategorized', getUncategorizedLabTests);
 
-
+// PARAMETERIZED ROUTES COME LAST
+router.get('/:id', getLabTestById);
 
 // POST create new lab test
 router.post('/', createLabTest);
@@ -39,4 +32,3 @@ router.put('/:id', updateLabTest);
 router.delete('/:id', deleteLabTest);
 
 module.exports = router;
-
