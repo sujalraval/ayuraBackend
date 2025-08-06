@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.SSHKEY }}
           script: |
             cd /root/ayuracode/ayuraBackend/
-            git fetch origin main
+            git pull origin main
             git reset --hard origin/main
             git clean -fd
             # continue deployment...
