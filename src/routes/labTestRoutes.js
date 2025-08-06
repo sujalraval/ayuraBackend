@@ -14,8 +14,6 @@ const {
 // GET all lab tests
 router.get('/', getAllLabTests);
 
-// GET search lab tests (BEFORE the /:id route)
-router.get('/search', searchLabTests);
 
 // GET single lab test by ID
 router.get('/:id', getLabTestById);
