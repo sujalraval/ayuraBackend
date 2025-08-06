@@ -13,6 +13,9 @@ const {
 // GET all lab tests
 router.get('/', getAllLabTests);
 
+// GET single lab test by ID
+router.get('/:id', getLabTestById);
+
 // GET lab tests by category slug
 router.get('/category/slug/:slug', getLabTestsByCategorySlug);
 
@@ -32,3 +35,4 @@ router.put('/:id', updateLabTest);
 router.delete('/:id', deleteLabTest);
 
 module.exports = router;
+

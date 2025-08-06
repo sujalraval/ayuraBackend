@@ -12,13 +12,55 @@ exports.getAllLabTests = async (req, res) => {
     }
 };
 
+// Get a single lab test by ID - NEW FUNCTION
+exports.getLabTestById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        console.log('Fetching test by ID:', id);
+
+        const test = await LabTest.findById(id);
+
+        if (!test) {
+            console.log('Test not found for ID:', id);
+            return res.status(404).json({
+                success: false,
+                message: 'Test not found',
+                error: `No test found with ID: ${id}`
+            });
+        }
+
+        console.log('Found test:', test.name);
+
+        res.json({
+            success: true,
+            data: test
+        });
+    } catch (error) {
+        console.error('Error fetching test by ID:', error);
+
+        if (error.name === 'CastError') {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid test ID format',
+                error: 'The provided ID is not a valid MongoDB ObjectId'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
 // Get lab tests by category slug
 exports.getLabTestsByCategorySlug = async (req, res) => {
     try {
         const slug = req.params.slug;
         console.log('Fetching tests for slug:', slug);
 
-        // First, find the category by slug
         const category = await Category.findOne({ slug });
 
         if (!category) {
@@ -31,7 +73,6 @@ exports.getLabTestsByCategorySlug = async (req, res) => {
 
         console.log('Found category:', category.name);
 
-        // Find lab tests that match the category name
         const tests = await LabTest.find({
             category: {
                 $regex: new RegExp(`^${category.name}$`, 'i')
@@ -70,9 +111,10 @@ exports.getUncategorizedLabTests = async (req, res) => {
     }
 };
 
+// Create lab test
 exports.createLabTest = async (req, res) => {
     try {
-        console.log('Received data:', req.body); // Debug log
+        console.log('Received data:', req.body);
 
         const testData = {
             name: req.body.name,
@@ -91,12 +133,12 @@ exports.createLabTest = async (req, res) => {
             whyItIsImportant: req.body.whyItIsImportant
         };
 
-        console.log('Processed data:', testData); // Debug log
+        console.log('Processed data:', testData);
 
         const newTest = new LabTest(testData);
         const savedTest = await newTest.save();
 
-        console.log('Saved test:', savedTest); // Debug log
+        console.log('Saved test:', savedTest);
 
         res.status(201).json(savedTest);
     } catch (err) {
@@ -108,11 +150,10 @@ exports.createLabTest = async (req, res) => {
     }
 };
 
-
 // Update a lab test
 exports.updateLabTest = async (req, res) => {
     try {
-        console.log('Updating with data:', req.body); // Debug log
+        console.log('Updating with data:', req.body);
 
         const updateData = {
             name: req.body.name,
@@ -141,7 +182,7 @@ exports.updateLabTest = async (req, res) => {
             return res.status(404).json({ error: 'Lab test not found' });
         }
 
-        console.log('Updated test:', updated); // Debug log
+        console.log('Updated test:', updated);
         res.json(updated);
     } catch (err) {
         console.error('Error updating lab test:', err);
@@ -151,7 +192,6 @@ exports.updateLabTest = async (req, res) => {
         });
     }
 };
-
 
 // Delete a lab test
 exports.deleteLabTest = async (req, res) => {
@@ -172,7 +212,7 @@ exports.deleteLabTest = async (req, res) => {
     }
 };
 
-// search lab tests by name, alias, category, description, or parameters
+// Search lab tests by name, alias, category, description, or parameters
 exports.searchLabTests = async (req, res) => {
     try {
         const { query } = req.query;
@@ -191,7 +231,7 @@ exports.searchLabTests = async (req, res) => {
                 { description: { $regex: searchRegex } },
                 { parameters: { $regex: searchRegex } }
             ]
-        }).limit(10); // Limit to 10 results for performance
+        }).limit(10);
 
         res.json(tests);
     } catch (err) {
