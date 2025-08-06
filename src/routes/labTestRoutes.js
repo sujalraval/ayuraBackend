@@ -7,7 +7,8 @@ const {
     createLabTest,
     updateLabTest,
     deleteLabTest,
-    searchLabTests
+    searchLabTests,
+    getLabTestById
 } = require('../controllers/labTestController');
 
 // GET all lab tests
