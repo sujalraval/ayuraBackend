@@ -70,17 +70,6 @@ router.use('*', (req, res) => {
     res.status(404).json({
         success: false,
         message: `API route ${req.originalUrl} not found`,
-        availableRoutes: [
-            '/api/v1/health',
-            '/api/v1/info',
-            '/api/v1/auth',
-            '/api/v1/admin',
-            '/api/v1/orders',
-            '/api/v1/lab-tests',
-            '/api/v1/categories',
-            '/api/v1/cart',
-            '/api/v1/bookings'
-        ]
     });
 });
 

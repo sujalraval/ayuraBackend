@@ -164,12 +164,12 @@ app.use(passport.session());
 app.use('/api/v1', require('./src/routes'));
 
 // Handle 404 for API routes only
-app.use('/api/*', (req, res) => {
-    res.status(404).json({
-        success: false,
-        message: `API Route ${req.originalUrl} not found`
-    });
-});
+// app.use('/api/*', (req, res) => {
+//     res.status(404).json({
+//         success: false,
+//         message: `API Route ${req.originalUrl} not found`
+//     });
+// });
 
 // Enhanced global error handling middleware
 app.use((err, req, res, next) => {
