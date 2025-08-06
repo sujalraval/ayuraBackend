@@ -16,6 +16,10 @@ router.get('/', getAllLabTests);
 // GET single lab test by ID
 router.get('/:id', getLabTestById);
 
+// GET search lab tests (BEFORE the /:id route)
+router.get('/search', searchLabTests);
+
+
 // GET lab tests by category slug
 router.get('/category/slug/:slug', getLabTestsByCategorySlug);
 
