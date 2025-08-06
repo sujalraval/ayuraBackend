@@ -23,34 +23,9 @@ router.get('/health', (req, res) => {
         uptime: process.uptime(),
         version: '1.0.0',
         environment: process.env.NODE_ENV || 'development',
-        routes: {
-            auth: '/api/v1/auth',
-            admin: '/api/v1/admin',
-            orders: '/api/v1/orders',
-            labTests: '/api/v1/lab-tests',
-            categories: '/api/v1/categories',
-            cart: '/api/v1/cart',
-            bookings: '/api/v1/bookings'
-        }
     });
 });
 
-// API info route
-router.get('/info', (req, res) => {
-    res.status(200).json({
-        success: true,
-        api: 'Ayura Lab Test API',
-        version: '1.0.0',
-        documentation: 'Contact admin for API documentation',
-        endpoints: {
-            health: 'GET /api/v1/health',
-            auth: 'POST /api/v1/auth/login',
-            adminAuth: 'POST /api/v1/admin/login',
-            orders: 'GET /api/v1/orders',
-            tests: 'GET /api/v1/lab-tests'
-        }
-    });
-});
 
 // Route mounting with proper order (most specific first)
 router.use('/admin', adminRoutes);        // Admin routes first
