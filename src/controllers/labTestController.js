@@ -296,3 +296,32 @@ exports.searchLabTests = async (req, res) => {
         });
     }
 };
+
+// Bulk create lab tests
+exports.bulkCreateLabTests = async (req, res) => {
+    try {
+        const tests = req.body;
+
+        if (!Array.isArray(tests)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Input should be an array of lab tests'
+            });
+        }
+
+        const createdTests = await LabTest.insertMany(tests);
+
+        res.status(201).json({
+            success: true,
+            count: createdTests.length,
+            data: createdTests
+        });
+    } catch (err) {
+        console.error('Error bulk creating lab tests:', err);
+        res.status(400).json({
+            success: false,
+            error: 'Failed to create lab tests',
+            message: err.message
+        });
+    }
+};

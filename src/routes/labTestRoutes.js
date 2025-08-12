@@ -8,7 +8,8 @@ const {
     updateLabTest,
     deleteLabTest,
     searchLabTests,
-    getLabTestById
+    getLabTestById,
+    bulkCreateLabTests
 } = require('../controllers/labTestController');
 
 // GET all lab tests
@@ -27,4 +28,6 @@ router.get('/:id', getLabTestById);
 router.put('/:id', updateLabTest);
 router.delete('/:id', deleteLabTest);
 
+// Bulk create lab tests
+router.post('/bulk', bulkCreateLabTests);
 module.exports = router;
